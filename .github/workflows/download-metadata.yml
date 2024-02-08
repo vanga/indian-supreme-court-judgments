@@ -1,7 +1,6 @@
 name: Download Metaddta
 
 on:
-  push:
   workflow_dispatch: {}  
   schedule:
   - cron: '36 16 * * *' # IST 10PM+
