@@ -1,0 +1,24 @@
+name: Download Metaddta
+
+on:
+  push:
+  workflow_dispatch: {}  
+  schedule:
+  - cron: '36 16 * * *' # IST 10PM+
+
+jobs:
+  scheduled:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out this repo
+      uses: actions/checkout@v3
+    - name: Fetch latest data
+      run: python3 judgment-metadata.py
+    - name: Commit and push if it changed
+      run: |-
+        git config user.name "Automated"
+        git config user.email "actions@users.noreply.github.com"
+        git add -A
+        timestamp=$(date -u)
+        git commit -m "Latest data: ${timestamp}" || exit 0
+        git push
