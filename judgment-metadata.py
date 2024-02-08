@@ -59,9 +59,19 @@ def get_judgment_metadata(from_date: str, to_date: str):
     }
 
     response = requests.post(base_url + "/?pageid=100001", headers=headers, data=data)
+    if response.status_code != 200:
+        print(
+            f"Failed to get metadata for {from_date} to {to_date}, err: {response.text}"
+        )
+        return
     file_name = f"{from_date}-{to_date}.json"
     out_path = output_dir / file_name
     metadata = json.loads(response.text)
+    if not metadata["data"]:
+        print(
+            f"No metadata found for {from_date} to {to_date}, response: {response.text}"
+        )
+        return
     with open(out_path, "w") as f:
         json.dump(metadata, f, indent=4)
         print(f"Metadata saved to {file_name}")
