@@ -76,7 +76,6 @@ def run():
         print(f"Getting metadata for {start} to {end}")
         time.sleep(1)
         get_judgment_metadata(start, end)
-        break  # TEMP
     print("Finished getting metadata")
 
 
