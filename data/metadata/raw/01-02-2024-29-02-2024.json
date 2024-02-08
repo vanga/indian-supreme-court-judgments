@@ -86,6 +86,20 @@
         },
         {
             "slno": 7,
+            "diary_no": "29601-2011",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-004672-004672 - 2012",
+            "pet": "NARESH CHANDRA AGRAWAL",
+            "res": "THE INSTITUTE OF CHARTERED ACCOUNTANTS OF INDIA",
+            "pet_adv": "SANJAY JAIN",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE PAMIDIGHANTAM SRI NARASIMHA, HON&#39;BLE MR. JUSTICE ARAVIND KUMAR",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE PAMIDIGHANTAM SRI NARASIMHA",
+            "judgment_dates": "08-02-2024",
+            "temp_link": "supremecourt/2011/29601/29601_2011_15_1501_50151_Judgement_08-Feb-2024.pdf (English)"
+        },
+        {
+            "slno": 8,
             "diary_no": "33196-2010",
             "Judgement_type": "J",
             "case_no": "Crl.A. No.-001954-001954 - 2012",
@@ -99,7 +113,7 @@
             "temp_link": "supremecourt/2010/33196/33196_2010_15_1501_50028_Judgement_02-Feb-2024.pdf (English)"
         },
         {
-            "slno": 8,
+            "slno": 9,
             "diary_no": "41796-2023",
             "Judgement_type": "J",
             "case_no": "C.A. No.-001776-001776 - 2024",
@@ -113,7 +127,7 @@
             "temp_link": "supremecourt/2023/41796/41796_2023_4_1501_50146_Judgement_07-Feb-2024.pdf (English)"
         },
         {
-            "slno": 9,
+            "slno": 10,
             "diary_no": "42693-2022",
             "Judgement_type": "J",
             "case_no": "SLP(Crl) No.-002888 - 2023",
