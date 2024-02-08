@@ -1,0 +1,47 @@
+{
+    "data": [
+        {
+            "slno": 1,
+            "diary_no": "10169-2001",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-004292-004292 - 2002",
+            "pet": "NATIONAL INSURANCE CO. LTD., CHANDIGARH",
+            "res": "NICOLLETTA ROHTAGI .",
+            "pet_adv": "M. K. DUA",
+            "res_adv": "SURYA KANT",
+            "bench": "",
+            "judgement_by": "",
+            "judgment_dates": "17-02-1902",
+            "temp_link": "jonew/judis/18613.pdf (English)"
+        },
+        {
+            "slno": 2,
+            "diary_no": "10567-2000",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-001156-001157 - 2001",
+            "pet": "DANA YADAV @ DAHU ",
+            "res": "STATE OF BIHAR",
+            "pet_adv": "IRSHAD AHMAD",
+            "res_adv": null,
+            "bench": "",
+            "judgement_by": "",
+            "judgment_dates": "13-02-1902",
+            "temp_link": "jonew/judis/18612.pdf (English)"
+        },
+        {
+            "slno": 3,
+            "diary_no": "19885-2000",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-005698-005698 - 2002",
+            "pet": "PADMA",
+            "res": "HIRALAL MOTILAL DESARDA .",
+            "pet_adv": null,
+            "res_adv": "APARNA BHAT",
+            "bench": "",
+            "judgement_by": "",
+            "judgment_dates": "09-02-1902",
+            "temp_link": "jonew/judis/18620.pdf (English)"
+        }
+    ],
+    "error": 0
+}
