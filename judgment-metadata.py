@@ -45,6 +45,13 @@ def get_year_intervals():
     return intervals
 
 
+def basic_clean(metadata: dict):
+    # delete slno as it is a transient data that changes based on new case additions or even changes in query time period
+    for item in metadata["data"]:
+        del item["slno"]
+    return metadata
+
+
 def get_judgment_metadata(from_date: str, to_date: str):
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -73,6 +80,7 @@ def get_judgment_metadata(from_date: str, to_date: str):
         )
         return
     with open(out_path, "w") as f:
+        metadata = basic_clean(metadata)
         json.dump(metadata, f, indent=4)
         print(f"Metadata saved to {file_name}")
     return response.text
@@ -84,6 +92,7 @@ def run():
     print(intervals)
     for start, end in intervals:
         print(f"Getting metadata for {start} to {end}")
+        # be a good citizen and wait for 1 second before making next request
         time.sleep(1)
         get_judgment_metadata(start, end)
     print("Finished getting metadata")
