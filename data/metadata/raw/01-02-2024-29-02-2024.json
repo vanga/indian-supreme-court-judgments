@@ -1,6 +1,19 @@
 {
     "data": [
         {
+            "diary_no": "1629-2016",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-000644-000645 - 2017",
+            "pet": "NO. 2809759H EX-RECRUIT BABANNA MACHCHED",
+            "res": "UNION OF INDIA .",
+            "pet_adv": "LEMAX LAWYERS & CO.",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MS. JUSTICE BELA M. TRIVEDI, HON&#39;BLE MR. JUSTICE PANKAJ MITHAL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE PANKAJ MITHAL",
+            "judgment_dates": "09-02-2024",
+            "temp_link": "supremecourt/2016/1629/1629_2016_15_1501_50290_Judgement_09-Feb-2024.pdf (English)"
+        },
+        {
             "diary_no": "5229-2011",
             "Judgement_type": "J",
             "case_no": "Crl.A. No.-001465-001465 - 2011",
@@ -25,6 +38,19 @@
             "judgement_by": "HON&#39;BLE THE CHIEF JUSTICE",
             "judgment_dates": "02-02-2024",
             "temp_link": "supremecourt/2022/6789/6789_2022_1_1501_49985_Judgement_02-Feb-2024.pdf (English)"
+        },
+        {
+            "diary_no": "13245-2022",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-000756-000756 - 2024",
+            "pet": "RAJASEKAR",
+            "res": "THE STATE REP. BY THE INSPECTOR OF POLICE",
+            "pet_adv": "S. GOWTHAMAN",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE VIKRAM NATH, HON&#39;BLE MR. JUSTICE SATISH CHANDRA SHARMA",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE VIKRAM NATH",
+            "judgment_dates": "05-02-2024",
+            "temp_link": "supremecourt/2022/13245/13245_2022_8_29_50070_Judgement_05-Feb-2024.pdf (English)"
         },
         {
             "diary_no": "14087-2009",
