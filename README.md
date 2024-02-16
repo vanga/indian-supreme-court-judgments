@@ -1,3 +1,6 @@
+Download the cleaned metadata from [here](./data/metadata/clean/judgments.csv)
+
+
 * Gets metadata about judgments from API. The details of API are figured out by inspecting the android app traffic.
 * Sample request
     ```

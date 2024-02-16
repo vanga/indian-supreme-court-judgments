@@ -55,4 +55,4 @@ for mf in metadata_files:
 all_df = clean_df(all_df)
 all_df = process_judgment_links(all_df)
 Path(csv_out_dir).mkdir(parents=True, exist_ok=True)
-all_df.to_csv(Path(csv_out_dir) / "all.csv", index=False)
+all_df.to_csv(Path(csv_out_dir) / "judgments.csv", index=False)
