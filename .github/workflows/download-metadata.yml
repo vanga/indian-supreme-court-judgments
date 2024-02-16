@@ -16,7 +16,9 @@ jobs:
     - name: Fetch latest data
       run: python3 judgment-metadata.py
       env:
-        AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}      
+        AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
+    - name: generate clean csv
+      run: python3 clean-metadata.py
     - name: Commit and push if it changed
       run: |-
         git config user.name "Automated"
