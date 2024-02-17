@@ -1,4 +1,4 @@
-name: Download Metaddta
+name: Download Metadata
 
 on:
   workflow_dispatch: {}  
