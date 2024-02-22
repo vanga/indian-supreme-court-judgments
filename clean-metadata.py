@@ -34,6 +34,10 @@ def process_judgment_links(df):
     # strip anything after the string ".pdf" in the temp_link column
     expl_df["temp_link"] = expl_df["temp_link"].str.extract(r"(.+?\.pdf)", expand=False)
     # extract language
+    # prefix all temp_link that with judis with "jonew/"
+    expl_df.reset_index(drop=True, inplace=True)
+    mask = expl_df["temp_link"].str.startswith("judis")
+    expl_df.loc[mask, "temp_link"] = "jonew/" + expl_df.loc[mask, "temp_link"]
     expl_df["language"] = expl_df["temp_link"].str.extract(
         r"_([A-Z]+).pdf", expand=False
     )
