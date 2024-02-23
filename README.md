@@ -1,4 +1,5 @@
 Download the cleaned metadata from [here](./data/metadata/clean/judgments.csv)
+PDF judgmetns and the metadata can be downloaded from [Kaggle](https://www.kaggle.com/datasets/vangap/indian-supreme-court-judgments/data) which gets updated weekly.
 
 
 * Gets metadata about judgments from API. The details of API are figured out by inspecting the android app traffic.
