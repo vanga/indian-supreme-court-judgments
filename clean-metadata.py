@@ -17,7 +17,7 @@ def clean_df(df):
         df[col] = df[col].str.strip(" \n\t\r")
         df[col] = df[col].str.replace("\n\t\r", " ")
         # replace multiple spaces with single space
-        df[col] = df[col].str.replace(" +", " ")
+        df[col] = df[col].str.replace("\\s+", " ", regex=True)
         # fill empty strings with NaN
         df[col] = df[col].replace("", pd.NA)
     return df
@@ -25,7 +25,15 @@ def clean_df(df):
 
 def process_judgment_links(df):
     df["temp_links"] = df["temp_link"].str.split("|")
+    df["temp_link"] = df["temp_links"].str[0]
     expl_df = df.explode("temp_links")
+    # if dairy no it "-0" and temp_link is same as temp_links, set all cells to NaN except the temp_link and diary no
+    # they seem to be clubbing multiple judgments with diary no "-0", possibly like a catch all diary no if they don't have a diary no associated with some of the judgments. Judgment links for all such cases are coming in a single row.
+    faulty_rows = (expl_df.diary_no == "-0") & (expl_df.temp_link != expl_df.temp_links)
+    expl_df.loc[faulty_rows, expl_df.columns.difference(["temp_links", "diary_no"])] = (
+        pd.NA
+    )
+
     expl_df["temp_link"] = clean_df(expl_df[["temp_links"]])
     expl_df = expl_df.drop(columns=["temp_links"])
     # assert all rows contain temp_link with .pdf
