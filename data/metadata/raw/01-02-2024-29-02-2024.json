@@ -359,7 +359,7 @@
             "res": "ASSISTANT C.I.T CIRCLE 57 ",
             "pet_adv": "PRAVEEN KUMAR",
             "res_adv": "RAJ BAHADUR YADAV",
-            "bench": "HON&#39;BLE MR. JUSTICE SANJIV KHANNA, HON&#39;BLE MR. JUSTICE DIPANKAR DATTA",
+            "bench": "HON&#39;BLE MR. JUSTICE SANJIV KHANNA, HON&#39;BLE MR. JUSTICE S.V.N. BHATTI",
             "judgement_by": "HON&#39;BLE MR. JUSTICE SANJIV KHANNA",
             "judgment_dates": "28-02-2024",
             "temp_link": "supremecourt/2011/23300/23300_2011_2_1501_50821_Judgement_28-Feb-2024.pdf (English)"
@@ -599,6 +599,32 @@
             "temp_link": "supremecourt/2016/34346/34346_2016_3_1501_50618_Judgement_22-Feb-2024.pdf (English)"
         },
         {
+            "diary_no": "35057-2008",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-001722-001722 - 2010",
+            "pet": "NARESH KUMAR",
+            "res": "STATE OF HARYANA",
+            "pet_adv": "APARNA JHA",
+            "res_adv": "VISHWA PAL SINGH",
+            "bench": "HON&#39;BLE MR. JUSTICE J.B. PARDIWALA, HON&#39;BLE MR. JUSTICE MANOJ MISRA",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE J.B. PARDIWALA",
+            "judgment_dates": "22-02-2024",
+            "temp_link": "supremecourt/2008/35057/35057_2008_10_102_50755_Judgement_22-Feb-2024.pdf (English)"
+        },
+        {
+            "diary_no": "35350-2011",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-009035-009035 - 2013",
+            "pet": "SAVITRI BAI",
+            "res": "SAVITRI BAI",
+            "pet_adv": null,
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE ANIRUDDHA BOSE, HON&#39;BLE MR. JUSTICE SANJAY KUMAR",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE ANIRUDDHA BOSE",
+            "judgment_dates": "29-02-2024",
+            "temp_link": "supremecourt/2011/35350/35350_2011_5_1501_50861_Judgement_29-Feb-2024.pdf (English)"
+        },
+        {
             "diary_no": "36068-2009",
             "Judgement_type": "J",
             "case_no": "C.A. No.-000722-000722 - 2012",
@@ -662,6 +688,19 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA",
             "judgment_dates": "23-02-2024",
             "temp_link": "supremecourt/2014/38101/38101_2014_7_1501_50745_Judgement_23-Feb-2024.pdf (English)"
+        },
+        {
+            "diary_no": "38573-2010",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-002886-002886 - 2012",
+            "pet": "BASAVARAJ",
+            "res": "INDIRA",
+            "pet_adv": "ANKOLEKAR GURUDATTA",
+            "res_adv": "ASHOK KUMAR GUPTA II",
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE RAJESH BINDAL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "29-02-2024",
+            "temp_link": "supremecourt/2010/38573/38573_2010_13_1501_50865_Judgement_29-Feb-2024.pdf (English)"
         },
         {
             "diary_no": "40457-2022",
@@ -753,6 +792,19 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA",
             "judgment_dates": "09-02-2024",
             "temp_link": "supremecourt/2023/44981/44981_2023_7_47_50289_Judgement_09-Feb-2024.pdf (English)"
+        },
+        {
+            "diary_no": "47928-2023",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-003589 - 2023",
+            "pet": "HIGH COURT BAR ASSOCIATION ALLAHABAD",
+            "res": "THE STATE OF UTTAR PRADESH",
+            "pet_adv": "SHANTANU KRISHNA",
+            "res_adv": null,
+            "bench": "",
+            "judgement_by": "HON&#39;BLE THE CHIEF JUSTICE",
+            "judgment_dates": "29-02-2024",
+            "temp_link": "supremecourt/2023/47928/47928_2023_1_1501_51053_Judgement_29-Feb-2024.pdf (English)"
         }
     ],
     "error": 0
