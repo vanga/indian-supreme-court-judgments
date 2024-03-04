@@ -1,6 +1,32 @@
 {
     "data": [
         {
+            "diary_no": "10177-2014",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-000451-000451 - 2019",
+            "pet": "SITA SOREN",
+            "res": "UNION OF INDIA",
+            "pet_adv": null,
+            "res_adv": "GAURAV AGRAWAL",
+            "bench": "HON&#39;BLE THE CHIEF JUSTICE, HON&#39;BLE MR. JUSTICE A.S. BOPANNA, HON&#39;BLE MR. JUSTICE M.M. SUNDRESH, HON&#39;BLE MR. JUSTICE PAMIDIGHANTAM SRI NARASIMHA, HON&#39;BLE MR. JUSTICE J.B. PARDIWALA, HON&#39;BLE MR. JUSTICE SANJAY KUMAR, HON&#39;BLE MR. JUSTICE MANOJ MISRA",
+            "judgement_by": "HON&#39;BLE THE CHIEF JUSTICE",
+            "judgment_dates": "04-03-2024",
+            "temp_link": "supremecourt/2014/10177/10177_2014_1_1501_51211_Judgement_04-Mar-2024.pdf (English)"
+        },
+        {
+            "diary_no": "14969-2009",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-007293-007294 - 2010",
+            "pet": "SHRINIVAS RAGHAVENDRARAO DESAI (DEAD) BY L.R.S",
+            "res": "KUMAR VAMANRAO @ ALOK",
+            "pet_adv": "ANKUR S. KULKARNI",
+            "res_adv": "ANKOLEKAR GURUDATTA",
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE RAJESH BINDAL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "04-03-2024",
+            "temp_link": "supremecourt/2009/14969/14969_2009_13_1503_51045_Judgement_04-Mar-2024.pdf (English)"
+        },
+        {
             "diary_no": "16419-2023",
             "Judgement_type": "J",
             "case_no": "ARBIT.PETITON No.-000029 - 2023",
@@ -12,6 +38,32 @@
             "judgement_by": "HON&#39;BLE THE CHIEF JUSTICE",
             "judgment_dates": "01-03-2024",
             "temp_link": "supremecourt/2023/16419/16419_2023_1_1501_51000_Judgement_01-Mar-2024.pdf (English)"
+        },
+        {
+            "diary_no": "23396-2023",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-001345-001345 - 2024",
+            "pet": "SHAZIA AMAN KHAN",
+            "res": "STATE OF ORISSA",
+            "pet_adv": "AMIT PAWAN",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE RAJESH BINDAL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "04-03-2024",
+            "temp_link": "supremecourt/2023/23396/23396_2023_13_1501_51045_Judgement_04-Mar-2024.pdf (English)"
+        },
+        {
+            "diary_no": "31069-2007",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-008935-008935 - 2011",
+            "pet": "THANGAM  AND ANR.",
+            "res": "NAVAMANI AMMAL",
+            "pet_adv": "K. K. MANI",
+            "res_adv": "SUVENDU SUVASIS DASH",
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE RAJESH BINDAL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "04-03-2024",
+            "temp_link": "supremecourt/2007/31069/31069_2007_13_1502_51045_Judgement_04-Mar-2024.pdf (English)"
         },
         {
             "diary_no": "37789-2010",
@@ -51,6 +103,19 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA",
             "judgment_dates": "01-03-2024",
             "temp_link": "supremecourt/2010/38234/38234_2010_7_1501_51005_Judgement_01-Mar-2024.pdf (English)"
+        },
+        {
+            "diary_no": "40711-2022",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-001495 - 2023",
+            "pet": "RAJESH MONGA",
+            "res": "HOUSING DEVELOPMENT FINANCE CORPORATION LIMITED",
+            "pet_adv": "NITIN SALUJA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE A.S. BOPANNA",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE A.S. BOPANNA",
+            "judgment_dates": "04-03-2024",
+            "temp_link": "supremecourt/2022/40711/40711_2022_6_1501_51062_Judgement_04-Mar-2024.pdf (English)"
         },
         {
             "diary_no": "42688-2018",
