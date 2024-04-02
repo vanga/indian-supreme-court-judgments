@@ -1,6 +1,58 @@
 {
     "data": [
         {
+            "diary_no": "23738-2018",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-001167 - 2018",
+            "pet": "BALLU@ BALRAM@ BALMUKUND",
+            "res": "THE STATE OF MADHYA PRADESH",
+            "pet_adv": "VARINDER KUMAR SHARMA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE B.R. GAVAI, HON&#39;BLE MR. JUSTICE SANDEEP MEHTA",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE B.R. GAVAI",
+            "judgment_dates": "02-04-2024",
+            "temp_link": "supremecourt/2018/23738/23738_2018_3_1501_51854_Judgement_02-Apr-2024.pdf (English)"
+        },
+        {
+            "diary_no": "24489-2018",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-004633-004633 - 2024",
+            "pet": "PURNI DEVI",
+            "res": "BABU RAM",
+            "pet_adv": null,
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE J.K. MAHESHWARI, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgment_dates": "02-04-2024",
+            "temp_link": "supremecourt/2018/24489/24489_2018_10_1501_51862_Judgement_02-Apr-2024.pdf (English)"
+        },
+        {
+            "diary_no": "31729-2018",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-001858-001858 - 2024",
+            "pet": "PREM RAJ",
+            "res": "POONAMMA MENON",
+            "pet_adv": "K.PARAMESHWAR",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE J.K. MAHESHWARI, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE J.K. MAHESHWARI",
+            "judgment_dates": "02-04-2024",
+            "temp_link": "supremecourt/2018/31729/31729_2018_10_1502_51862_Judgement_02-Apr-2024.pdf (English)"
+        },
+        {
+            "diary_no": "37859-2022",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-004626-004626 - 2024",
+            "pet": "LEVEL 9 BIZ PVT. LTD.",
+            "res": "HIMACHAL PRADESH HOUSING AND URBAN DEVELOPMENT AUTHORITY",
+            "pet_adv": "RITESH KHATRI",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MS. JUSTICE BELA M. TRIVEDI, HON&#39;BLE MR. JUSTICE PANKAJ MITHAL",
+            "judgement_by": "HON&#39;BLE MS. JUSTICE BELA M. TRIVEDI",
+            "judgment_dates": "02-04-2024",
+            "temp_link": "supremecourt/2022/37859/37859_2022_15_1501_51867_Judgement_02-Apr-2024.pdf (English)"
+        },
+        {
             "diary_no": "51385-2023",
             "Judgement_type": "J",
             "case_no": "ORGNL.SUIT No.-000001 - 2024",
