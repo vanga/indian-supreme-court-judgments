@@ -1,6 +1,58 @@
 {
     "data": [
         {
+            "diary_no": "636-2009",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-004806-004806 - 2011",
+            "pet": "KRISHNADATT AWASTHY",
+            "res": "STATE OF M.P..",
+            "pet_adv": "NEERAJ SHEKHAR",
+            "res_adv": "ANISH KUMAR GUPTA",
+            "bench": "",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE J.K. MAHESHWARI",
+            "judgment_dates": "04-04-2024",
+            "temp_link": "supremecourt/2009/636/636_2009_10_1501_52065_Judgement_04-Apr-2024.pdf (English)"
+        },
+        {
+            "diary_no": "8220-2021",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-004686-004686 - 2024",
+            "pet": "THE GENERAL MANAGER, M/S BARSUA IRON ORE MINES",
+            "res": "THE VICE PRESIDENT UNITED MINES MAZDOOR UNION",
+            "pet_adv": "SUNIL KUMAR JAIN",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MS. JUSTICE HIMA KOHLI, HON&#39;BLE MR. JUSTICE AHSANUDDIN AMANULLAH",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE AHSANUDDIN AMANULLAH",
+            "judgment_dates": "02-04-2024",
+            "temp_link": "supremecourt/2021/8220/8220_2021_11_1501_51863_Judgement_02-Apr-2024.pdf (English)"
+        },
+        {
+            "diary_no": "13646-2021",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-002741-002743 - 2024",
+            "pet": "NAVNEET KAUR HARBHAJANSING KUNDLES @ NAVNEET KAUR RAVI RANA",
+            "res": "THE STATE OF MAHARASHTRA",
+            "pet_adv": "E. C. AGRAWALA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE J.K. MAHESHWARI, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE J.K. MAHESHWARI",
+            "judgment_dates": "04-04-2024",
+            "temp_link": "supremecourt/2021/13646/13646_2021_10_1502_52063_Judgement_04-Apr-2024.pdf (English)"
+        },
+        {
+            "diary_no": "19844-2022",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-005187-005187 - 2023",
+            "pet": "M/S.   BHARTI   AIRTEL   LIMITED",
+            "res": "A.S. RAGHAVENDRA",
+            "pet_adv": "VATSALYA VIGYA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MS. JUSTICE HIMA KOHLI, HON&#39;BLE MR. JUSTICE AHSANUDDIN AMANULLAH",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE AHSANUDDIN AMANULLAH",
+            "judgment_dates": "02-04-2024",
+            "temp_link": "supremecourt/2022/19844/19844_2022_11_1502_51863_Judgement_02-Apr-2024.pdf (English)"
+        },
+        {
             "diary_no": "23738-2018",
             "Judgement_type": "J",
             "case_no": "Crl.A. No.-001167 - 2018",
