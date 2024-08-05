@@ -1,6 +1,19 @@
 {
     "data": [
         {
+            "diary_no": "308-2024",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-008435-008436 - 2024",
+            "pet": "MOOL CHANDRA",
+            "res": "UNION OF INDIA",
+            "pet_adv": "VARDHMAN KAUSHIK ",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE M.M. SUNDRESH, HON&#39;BLE MR. JUSTICE ARAVIND KUMAR",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE ARAVIND KUMAR",
+            "judgment_dates": "05-08-2024",
+            "temp_link": "supremecourt/2024/308/308_2024_13_1501_54450_Judgement_05-Aug-2024.pdf (English)"
+        },
+        {
             "diary_no": "984-2024",
             "Judgement_type": "J",
             "case_no": "Crl.A. No.-003210-003210 - 2024",
@@ -90,6 +103,19 @@
             "judgement_by": "HON&#39;BLE THE CHIEF JUSTICE",
             "judgment_dates": "01-08-2024",
             "temp_link": "supremecourt/2010/25536/25536_2010_1_1501_54462_Judgement_01-Aug-2024.pdf (English)"
+        },
+        {
+            "diary_no": "30823-2022",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-003185-003185 - 2024",
+            "pet": "DEVENDRA SINGH",
+            "res": "THE STATE OF UTTAR PRADESH",
+            "pet_adv": "T. N. SINGH",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE B.R. GAVAI, HON&#39;BLE MR. JUSTICE K.V. VISWANATHAN",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE B.R. GAVAI",
+            "judgment_dates": "02-08-2024",
+            "temp_link": "supremecourt/2022/30823/30823_2022_3_1501_54330_Judgement_02-Aug-2024.pdf (English)"
         },
         {
             "diary_no": "33987-2023",
