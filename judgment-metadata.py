@@ -73,7 +73,11 @@ def get_judgment_metadata(from_date: str, to_date: str):
         return
     file_name = f"{from_date}-{to_date}.json"
     out_path = output_dir / file_name
-    metadata = json.loads(response.text)
+    try:
+        metadata = json.loads(response.text)
+    except Exception as e:
+        print(f"Failed to parse response: {response.text}")
+        raise e
     if not metadata["data"]:
         print(
             f"No metadata found for {from_date} to {to_date}, response: {response.text}"
