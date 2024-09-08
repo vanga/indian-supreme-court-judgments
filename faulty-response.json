@@ -1,0 +1,60 @@
+select diary_no, group_concat(CONCAT(jm," (",judgment_language,")") separator " | ") jm, dated, jo, pet_name, res_name, pet_adv_id, res_adv_id, active_fil_no, short_description, 
+            active_casetype_id, active_reg_year, jo1, bench, judgmentBy, judgment_language, language_short_name from  
+            (
+            
+            SELECT o.diary_no diary_no,o.jm jm,o.dated dated,o.jt jo,
+            m.pet_name,m.res_name,pet.name as pet_adv_id,res.name as res_adv_id,m.active_fil_no,short_description,active_casetype_id,active_reg_year,
+            case when o.jt="rop" then "ROP" when o.jt="judgment" then "Judgement" when o.jt="or" then "Office Report" END as jo1,
+              "" as bench, "" as judgmentBy,
+              "English" as judgment_language,"ENG" as language_short_name
+            FROM tempo o LEFT JOIN main m ON concat(o.dn,o.dy) = m.diary_no
+            left join bar pet on m.pet_adv_id=pet.bar_id  left join bar res on m.res_adv_id=res.bar_id
+            LEFT JOIN casetype c ON m.active_casetype_id = casecode
+            WHERE dated BETWEEN :from_date AND :to_date and o.jt NOT LIKE "%or%" AND o.jt NOT LIKE "%rop%"
+            union
+            SELECT o.diary_no diary_no,o.pdfname jm,o.orderdate dated,o.type jo,
+            m.pet_name,m.res_name,pet.name as pet_adv_id,res.name as res_adv_id,m.active_fil_no,short_description,active_casetype_id,active_reg_year,
+            case when o.type="O" then "ROP" when o.type="J" then "Judgement" when o.type="FO" then "Judgement" END as jo1,
+            (select group_concat(jname separator ", ") from judge where find_in_set(jcode,d1.jud_id)) as bench,
+            (select jname from judge where find_in_set(jcode,o.perj)) as judgmentBy,
+            "English" as judgment_language,"ENG" as language_short_name
+            FROM ordernet o LEFT JOIN main m ON o.diary_no = m.diary_no
+            left join bar pet on m.pet_adv_id=pet.bar_id  left join bar res on m.res_adv_id=res.bar_id
+            LEFT JOIN casetype c ON m.active_casetype_id = casecode
+            left join dispose d1 on m.diary_no=d1.diary_no
+            WHERE orderdate BETWEEN :from_date AND :to_date and pdfname!="" AND o.type="J"  and o.display="Y"
+            union
+            SELECT o.dn diary_no,concat("judis/",o.filename,".pdf") jm,o.juddate dated,"J" jo,
+            m.pet_name,m.res_name,pet.name as pet_adv_id,res.name as res_adv_id,m.active_fil_no,short_description,active_casetype_id,active_reg_year,
+            "Judgment" as jo1,
+            TRIM(BOTH "," FROM (concat(jud1,",",jud2,",",jud3,",",jud4,",",jud5))) as bench, "" as judgmentBy,
+            "English" as judgment_language,"ENG" as language_short_name
+            FROM scordermain o LEFT JOIN main m ON o.dn = m.diary_no
+            left join bar pet on m.pet_adv_id=pet.bar_id  left join bar res on m.res_adv_id=res.bar_id
+            LEFT JOIN casetype c ON m.active_casetype_id = casecode
+
+            WHERE o.juddate BETWEEN :from_date AND :to_date and o.dn!=0
+            union
+            SELECT o.dn diary_no,concat("judis/",o.filename,".pdf") jm,o.juddate dated,"J" jo,
+            o.petname as pet_name,o.resname as res_name,"" as pet_adv_id,"" as res_adv_id,id as active_fil_no,caseno as short_description,"" as active_casetype_id,"" as active_reg_year,
+            "Judgment" as jo1,
+            TRIM(BOTH "," FROM (concat(jud1,",",jud2,",",jud3,",",jud4,",",jud5))) as bench, "" as judgmentBy,
+            "English" as judgment_language,"ENG" as language_short_name
+            FROM scordermain o
+            WHERE o.juddate BETWEEN :from_date AND :to_date and o.dn=0
+            UNION 
+             SELECT o.diary_no diary_no,o.pdf_name jm,o.order_date dated,o.order_type jo,
+            m.pet_name,m.res_name,pet.name as pet_adv_id,res.name as res_adv_id,m.active_fil_no,short_description,active_casetype_id,active_reg_year,
+            case when o.order_type="O" then "ROP" when o.order_type="J" then "Judgement" END as jo1,
+            (select group_concat(jname separator ", ") from judge where find_in_set(jcode,d1.jud_id)) as bench,
+            "" as judgmentBy,  
+            vl.display_name as judgment_language,vl.short_name as language_short_name
+            FROM vernacular_orders_judgments o LEFT JOIN main m ON o.diary_no = m.diary_no
+            inner join vernacular_languages vl on o.ref_vernacular_languages_id=vl.id   
+            left join bar pet on m.pet_adv_id=pet.bar_id  left join bar res on m.res_adv_id=res.bar_id 
+            LEFT JOIN casetype c ON m.active_casetype_id = casecode
+            left join dispose d1 on m.diary_no=d1.diary_no
+            WHERE order_date BETWEEN :from_date AND :to_date  AND o.order_type="J" and o.display="Y" 
+            order by dated desc
+             )x
+            group by diary_no{"data":[{"slno":1,"diary_no":"10169-2001","Judgement_type":"J","case_no":"C.A. No.-004292-004292 - 2002","pet":"NATIONAL INSURANCE CO. LTD., CHANDIGARH","res":"NICOLLETTA ROHTAGI .","pet_adv":"M. K. DUA","res_adv":"SURYA KANT","bench":"","judgement_by":"","judgment_dates":"17-02-1902","temp_link":"jonew\/judis\/18613.pdf (English)"},{"slno":2,"diary_no":"10567-2000","Judgement_type":"J","case_no":"Crl.A. No.-001156-001157 - 2001","pet":"DANA YADAV @ DAHU ","res":"STATE OF BIHAR","pet_adv":"IRSHAD AHMAD","res_adv":null,"bench":"","judgement_by":"","judgment_dates":"13-02-1902","temp_link":"jonew\/judis\/18612.pdf (English)"},{"slno":3,"diary_no":"19885-2000","Judgement_type":"J","case_no":"C.A. No.-005698-005698 - 2002","pet":"PADMA","res":"HIRALAL MOTILAL DESARDA .","pet_adv":null,"res_adv":"APARNA BHAT","bench":"","judgement_by":"","judgment_dates":"09-02-1902","temp_link":"jonew\/judis\/18620.pdf (English)"}],"error":0}

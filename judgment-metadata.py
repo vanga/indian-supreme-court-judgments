@@ -74,7 +74,9 @@ def get_judgment_metadata(from_date: str, to_date: str):
     file_name = f"{from_date}-{to_date}.json"
     out_path = output_dir / file_name
     try:
-        metadata = json.loads(response.text)
+        # server is returning the sql query + actual response as a response some times. Refer faulty-reponse.json file
+        response_json = response.text.split("group by diary_no")[-1]
+        metadata = json.loads(response_json)
     except Exception as e:
         print(f"Failed to parse response: {response.text}")
         raise e
