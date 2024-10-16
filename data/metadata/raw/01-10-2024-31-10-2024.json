@@ -1,6 +1,19 @@
 {
     "data": [
         {
+            "diary_no": "998-2023",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-011115-011116 - 2024",
+            "pet": "IDBI BANK LTD.",
+            "res": "RAMSWAROOP DALIYA",
+            "pet_adv": "KRISHAN KUMAR",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE PANKAJ MITHAL, HON&#39;BLE MR. JUSTICE UJJAL BHUYAN",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE PANKAJ MITHAL",
+            "judgment_dates": "16-10-2024",
+            "temp_link": "supremecourt/2023/998/998_2023_16_1501_56561_Judgement_16-Oct-2024.pdf (English)"
+        },
+        {
             "diary_no": "4255-2012",
             "Judgement_type": "J",
             "case_no": "Crl.A. No.-002224-002224 - 2014",
@@ -86,7 +99,7 @@
             "res": "THE STATE OF BIHAR",
             "pet_adv": "AJAY KUMAR SINGH",
             "res_adv": null,
-            "bench": "",
+            "bench": "HON&#39;BLE MS. JUSTICE BELA M. TRIVEDI, HON&#39;BLE MR. JUSTICE SATISH CHANDRA SHARMA",
             "judgement_by": "HON&#39;BLE MS. JUSTICE BELA M. TRIVEDI",
             "judgment_dates": "04-10-2024",
             "temp_link": "supremecourt/2015/13533/13533_2015_13_67_56307_Judgement_04-Oct-2024.pdf (English)"
@@ -105,6 +118,32 @@
             "temp_link": "supremecourt/2024/17609/17609_2024_10_1501_56478_Judgement_14-Oct-2024.pdf (English)"
         },
         {
+            "diary_no": "19950-2008",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-003291-003294 - 2009",
+            "pet": "THE BANK OF RAJASTHAN LTD.",
+            "res": "COMMISSIONER OF INCOME TAX",
+            "pet_adv": "KAVITA JHA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA, HON&#39;BLE MR. JUSTICE AHSANUDDIN AMANULLAH, HON&#39;BLE MR. JUSTICE AUGUSTINE GEORGE MASIH",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA",
+            "judgment_dates": "16-10-2024",
+            "temp_link": "supremecourt/2008/19950/19950_2008_6_1501_56387_Judgement_16-Oct-2024.pdf (English)"
+        },
+        {
+            "diary_no": "20301-2016",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-011117-011117 - 2024",
+            "pet": "THE PATNA MUNICIPAL CORPORATION",
+            "res": "M/S TRIBRO AD BUREAU",
+            "pet_adv": "KAUSHIK PODDAR",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA, HON&#39;BLE MR. JUSTICE AHSANUDDIN AMANULLAH, HON&#39;BLE MR. JUSTICE AUGUSTINE GEORGE MASIH",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA",
+            "judgment_dates": "16-10-2024",
+            "temp_link": "supremecourt/2016/20301/20301_2016_6_1503_56387_Judgement_16-Oct-2024.pdf (English)"
+        },
+        {
             "diary_no": "23801-2018",
             "Judgement_type": "J",
             "case_no": "C.A. No.-005919-005919 - 2023",
@@ -116,6 +155,19 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE PRASHANT KUMAR MISHRA",
             "judgment_dates": "14-10-2024",
             "temp_link": "supremecourt/2018/23801/23801_2018_3_1501_56472_Judgement_14-Oct-2024.pdf (English)"
+        },
+        {
+            "diary_no": "24519-2017",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-002891-002891 - 2023",
+            "pet": "CENTRAL BUREAU OF INVESTIGATION",
+            "res": "SRINIVAS D. SRIDHAR",
+            "pet_adv": "MUKESH KUMAR MARORIA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA, HON&#39;BLE MR. JUSTICE AHSANUDDIN AMANULLAH, HON&#39;BLE MR. JUSTICE AUGUSTINE GEORGE MASIH",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA",
+            "judgment_dates": "16-10-2024",
+            "temp_link": "supremecourt/2017/24519/24519_2017_6_1502_56387_Judgement_16-Oct-2024.pdf (English)"
         },
         {
             "diary_no": "24703-2019",
@@ -209,6 +261,19 @@
             "temp_link": "supremecourt/2017/38113/38113_2017_3_1501_56232_Judgement_03-Oct-2024.pdf (English)"
         },
         {
+            "diary_no": "38787-2018",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-004222-004222 - 2024",
+            "pet": "LALU YADAV",
+            "res": "THE STATE OF UTTAR PRADESH",
+            "pet_adv": "DEVVRAT",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "16-10-2024",
+            "temp_link": "supremecourt/2018/38787/38787_2018_11_1501_56562_Judgement_16-Oct-2024.pdf (English)"
+        },
+        {
             "diary_no": "39448-2024",
             "Judgement_type": "J",
             "case_no": "C.A. No.-010611-010611 - 2024",
@@ -220,6 +285,32 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE K.V. VISWANATHAN",
             "judgment_dates": "15-10-2024",
             "temp_link": "supremecourt/2024/39448/39448_2024_3_1501_56394_Judgement_15-Oct-2024.pdf (English)"
+        },
+        {
+            "diary_no": "41376-2024",
+            "Judgement_type": "J",
+            "case_no": " - 0",
+            "pet": "VITHAL  DAMUJI  MEHER",
+            "res": "MANIK MADHUKAR SARVE",
+            "pet_adv": "RAMESHWAR PRASAD GOYAL",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE DIPANKAR DATTA, HON&#39;BLE MR. JUSTICE AHSANUDDIN AMANULLAH",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE DIPANKAR DATTA",
+            "judgment_dates": "15-10-2024",
+            "temp_link": "supremecourt/2024/41376/41376_2024_16_1002_56438_Judgement_15-Oct-2024.pdf (English)"
+        },
+        {
+            "diary_no": "41913-2019",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-004220-004220 - 2024",
+            "pet": "EKNATH KISAN KUMBHARKAR",
+            "res": "THE STATE OF MAHARASHTRA",
+            "pet_adv": "APOORV SHUKLA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE M.M. SUNDRESH, HON&#39;BLE MR. JUSTICE ARAVIND KUMAR",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE ARAVIND KUMAR",
+            "judgment_dates": "16-10-2024",
+            "temp_link": "supremecourt/2019/41913/41913_2019_12_1501_56356_Judgement_16-Oct-2024.pdf (English)"
         },
         {
             "diary_no": "42144-2023",
