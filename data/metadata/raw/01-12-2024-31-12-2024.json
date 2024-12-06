@@ -1,6 +1,32 @@
 {
     "data": [
         {
+            "diary_no": "1609-2024",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-013919-013919 - 2024",
+            "pet": "BASUDEV DUTTA",
+            "res": "THE STATE OF WEST BENGAL",
+            "pet_adv": "SHEKHAR KUMAR",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE J.B. PARDIWALA, HON&#39;BLE MR. JUSTICE R. MAHADEVAN",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE R. MAHADEVAN",
+            "judgment_dates": "05-12-2024",
+            "temp_link": "supremecourt/2024/1609/1609_2024_15_1501_57647_Judgement_05-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "8716-2022",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-014029-014029 - 2024",
+            "pet": "P. J. DHARMARAJ",
+            "res": "CHURCH OF SOUTH INDIA",
+            "pet_adv": "MANDEEP KALRA ",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE VIKRAM NATH, HON&#39;BLE  MR. JUSTICE PRASANNA B. VARALE",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE VIKRAM NATH",
+            "judgment_dates": "06-12-2024",
+            "temp_link": "supremecourt/2022/8716/8716_2022_6_1502_57806_Judgement_06-Dec-2024.pdf (English)"
+        },
+        {
             "diary_no": "9208-2021",
             "Judgement_type": "J",
             "case_no": "Crl.A. No.-000573-000573 - 2023",
@@ -25,6 +51,19 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE R. MAHADEVAN",
             "judgment_dates": "03-12-2024",
             "temp_link": "supremecourt/2023/11481/11481_2023_15_1501_57613_Judgement_03-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "11789-2019",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-005097-005097 - 2024",
+            "pet": "KUNHIMUHAMMED @ KUNHEETHU",
+            "res": "THE STATE OF KERALA",
+            "pet_adv": "RADHA SHYAM JENA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE VIKRAM NATH, HON&#39;BLE  MR. JUSTICE PRASANNA B. VARALE",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE VIKRAM NATH",
+            "judgment_dates": "06-12-2024",
+            "temp_link": "supremecourt/2019/11789/11789_2019_6_1501_57806_Judgement_06-Dec-2024.pdf (English)"
         },
         {
             "diary_no": "20250-2021",
@@ -90,6 +129,19 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE RAJESH BINDAL",
             "judgment_dates": "02-12-2024",
             "temp_link": "supremecourt/2012/30634/30634_2012_7_1501_57673_Judgement_02-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "43783-2024",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-004952-004952 - 2024",
+            "pet": "HARE RAM YADAV",
+            "res": "STATE OF BIHAR",
+            "pet_adv": "SMARHAR SINGH",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE B.R. GAVAI, HON&#39;BLE MR. JUSTICE K.V. VISWANATHAN",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE B.R. GAVAI",
+            "judgment_dates": "03-12-2024",
+            "temp_link": "supremecourt/2024/43783/43783_2024_2_16_57599_Judgement_03-Dec-2024.pdf (English)"
         },
         {
             "diary_no": "47292-2018",
