@@ -1,6 +1,19 @@
 {
     "data": [
         {
+            "diary_no": "881-2015",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-014742-014742 - 2024",
+            "pet": "SANJEEVKUMAR HARAKCHAND KANKARIYA",
+            "res": "UNION OF INDIA",
+            "pet_adv": "SANDEEP SUDHAKAR DESHMUKH",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2015/881/881_2015_9_1507_58088_Judgement_19-Dec-2024.pdf (English)"
+        },
+        {
             "diary_no": "1609-2024",
             "Judgement_type": "J",
             "case_no": "C.A. No.-013919-013919 - 2024",
@@ -90,6 +103,32 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE J.B. PARDIWALA",
             "judgment_dates": "13-12-2024",
             "temp_link": "supremecourt/2010/3369/3369_2010_15_1502_58012_Judgement_13-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "3788-2024",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-014749-014749 - 2024",
+            "pet": "T.C. JOHN @ YOHANNAN (DECEASED) THROUGH LRS",
+            "res": "V.J. ANTONY",
+            "pet_adv": "HARSHAD V. HAMEED",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE J.K. MAHESHWARI, HON&#39;BLE MR. JUSTICE RAJESH BINDAL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE J.K. MAHESHWARI",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2024/3788/3788_2024_7_1501_58086_Judgement_19-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "3848-2023",
+            "Judgement_type": "J",
+            "case_no": "T.P.(C) No.-000278 - 2023",
+            "pet": "RINKU BAHETI",
+            "res": "SANDESH SHARDA",
+            "pet_adv": "ANINDITA MITRA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MRS. JUSTICE B.V. NAGARATHNA, HON&#39;BLE MR. JUSTICE NONGMEIKAPAM KOTISWAR SINGH",
+            "judgement_by": "HON&#39;BLE MRS. JUSTICE B.V. NAGARATHNA",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2023/3848/3848_2023_8_1501_58087_Judgement_19-Dec-2024.pdf (English)"
         },
         {
             "diary_no": "4352-2022",
@@ -274,6 +313,45 @@
             "temp_link": "supremecourt/2019/11789/11789_2019_6_1501_57806_Judgement_06-Dec-2024.pdf (English)"
         },
         {
+            "diary_no": "12193-2006",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-004211-004211 - 2009",
+            "pet": "MANSOORSAHEB (DEAD)",
+            "res": "SALIMA (D) BY LRS. .",
+            "pet_adv": "V. N. RAGHUPATHY",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2006/12193/12193_2006_9_1506_58088_Judgement_19-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "12484-2009",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-005041-005042 - 2012",
+            "pet": "CHANDRABHAN RUPCHAND DAKALE (D) BY LR. SHRI SURAJMAL CHANDRABHAN DAKALE (D) BY LR. SHRI RAJESH",
+            "res": "THE STATE OF MAHARASHTRA",
+            "pet_adv": "RAMESHWAR PRASAD GOYAL",
+            "res_adv": "AADITYA ANIRUDDHA PANDE",
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2009/12484/12484_2009_9_1501_58088_Judgement_19-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "12578-2022",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-000815-000815 - 2022",
+            "pet": "ASHOK VERMA",
+            "res": "THE STATE OF CHHATTISGARH",
+            "pet_adv": "MANJEET CHAWLA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2022/12578/12578_2022_9_1503_58088_Judgement_19-Dec-2024.pdf (English)"
+        },
+        {
             "diary_no": "13578-2024",
             "Judgement_type": "J",
             "case_no": "C.A. No.-014668-014668 - 2024",
@@ -385,10 +463,23 @@
             "res": "BIHAR STATE FOOD AND CIVIL SUPPLIES CORPORATION LTD. .",
             "pet_adv": "VAIBHAV NITI",
             "res_adv": null,
-            "bench": "",
+            "bench": "HON&#39;BLE MR. JUSTICE HRISHIKESH ROY, HON&#39;BLE MR. JUSTICE S.V.N. BHATTI",
             "judgement_by": "HON&#39;BLE MR. JUSTICE S.V.N. BHATTI",
             "judgment_dates": "18-12-2024",
             "temp_link": "supremecourt/2016/21963/21963_2016_4_1501_57960_Judgement_18-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "22266-2019",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-013516-013516 - 2024",
+            "pet": "TIRITH KUMAR",
+            "res": "DADURAM",
+            "pet_adv": "SATISH PANDEY",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2019/22266/22266_2019_9_1508_58088_Judgement_19-Dec-2024.pdf (English)"
         },
         {
             "diary_no": "24160-2024",
@@ -456,6 +547,19 @@
             "temp_link": "supremecourt/2020/27483/27483_2020_17_1501_57642_Judgement_04-Dec-2024.pdf (English)"
         },
         {
+            "diary_no": "27519-2023",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-005478-005478 - 2024",
+            "pet": "P. MANIKANDAN",
+            "res": "CENTRAL BUREAU OF INVESTIGATION",
+            "pet_adv": "K. K. MANI",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2023/27519/27519_2023_9_1509_58088_Judgement_19-Dec-2024.pdf (English)"
+        },
+        {
             "diary_no": "27644-2023",
             "Judgement_type": "J",
             "case_no": "C.A. No.-014100-014100 - 2024",
@@ -506,6 +610,19 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE J.B. PARDIWALA",
             "judgment_dates": "10-12-2024",
             "temp_link": "supremecourt/2022/28333/28333_2022_14_8_57766_Judgement_10-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "28347-2015",
+            "Judgement_type": "J",
+            "case_no": "C.A. No.-012845-012845 - 2024",
+            "pet": "STATE OF U.P .",
+            "res": "SANDEEP AGARWAL",
+            "pet_adv": null,
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA, HON&#39;BLE MR. JUSTICE AUGUSTINE GEORGE MASIH",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE ABHAY S. OKA",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2015/28347/28347_2015_5_1501_58084_Judgement_19-Dec-2024.pdf (English)"
         },
         {
             "diary_no": "29234-2021",
@@ -586,6 +703,19 @@
             "temp_link": "supremecourt/2023/31355/31355_2023_13_1501_57977_Judgement_13-Dec-2024.pdf (English)"
         },
         {
+            "diary_no": "31475-2018",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-003175-003175 - 2024",
+            "pet": "THE STATE OF ORISSA",
+            "res": "PRATIMA BEHERA",
+            "pet_adv": "SHIBASHISH MISRA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2018/31475/31475_2018_9_1502_58088_Judgement_19-Dec-2024.pdf (English)"
+        },
+        {
             "diary_no": "32235-2019",
             "Judgement_type": "J",
             "case_no": "Crl.A. No.-005412-005413 - 2024",
@@ -597,6 +727,19 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE K.V. VISWANATHAN",
             "judgment_dates": "17-12-2024",
             "temp_link": "supremecourt/2019/32235/32235_2019_2_1501_57953_Judgement_17-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "32279-2024",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-004831-004831 - 2024",
+            "pet": "RAJEEV KUMAR UPADHYAY",
+            "res": "SRIKANT UPADHYAY",
+            "pet_adv": "SANJEEV MALHOTRA",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2024/32279/32279_2024_9_1510_58088_Judgement_19-Dec-2024.pdf (English)"
         },
         {
             "diary_no": "33452-2010",
@@ -636,6 +779,19 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE PAMIDIGHANTAM SRI NARASIMHA",
             "judgment_dates": "11-12-2024",
             "temp_link": "supremecourt/2023/34174/34174_2023_12_1501_57759_Judgement_11-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "35645-2022",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-005484-005484 - 2024",
+            "pet": "KARAN TALWAR",
+            "res": "THE STATE OF TAMIL NADU",
+            "pet_adv": "PRITHA SRIKUMAR IYER",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2022/35645/35645_2022_9_1504_58088_Judgement_19-Dec-2024.pdf (English)"
         },
         {
             "diary_no": "35761-2013",
@@ -729,6 +885,19 @@
             "temp_link": "supremecourt/2024/39665/39665_2024_15_19_57857_Judgement_09-Dec-2024.pdf (English)"
         },
         {
+            "diary_no": "40820-2023",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-005479-005479 - 2024",
+            "pet": "RAVI DHINGRA",
+            "res": "STATE OF NCT OF DELHI",
+            "pet_adv": "ANKUR BANSAL",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR, HON&#39;BLE MR. JUSTICE SANJAY KAROL",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE C.T. RAVIKUMAR",
+            "judgment_dates": "19-12-2024",
+            "temp_link": "supremecourt/2023/40820/40820_2023_9_1505_58088_Judgement_19-Dec-2024.pdf (English)"
+        },
+        {
             "diary_no": "41061-2024",
             "Judgement_type": "J",
             "case_no": "Crl.A. No.-005204-005204 - 2024",
@@ -792,6 +961,19 @@
             "judgement_by": "HON&#39;BLE MR. JUSTICE SURYA KANT",
             "judgment_dates": "13-12-2024",
             "temp_link": "supremecourt/2024/42368/42368_2024_3_1501_57955_Judgement_13-Dec-2024.pdf (English)"
+        },
+        {
+            "diary_no": "42571-2024",
+            "Judgement_type": "J",
+            "case_no": "Crl.A. No.-005438-005438 - 2024",
+            "pet": "SIDDHANT @ SIDHARTH BALU TAKTODE",
+            "res": "THE STATE OF MAHARASHTRA",
+            "pet_adv": "ANAND DILIP LANDGE",
+            "res_adv": null,
+            "bench": "HON&#39;BLE MR. JUSTICE B.R. GAVAI, HON&#39;BLE MR. JUSTICE K.V. VISWANATHAN",
+            "judgement_by": "HON&#39;BLE MR. JUSTICE B.R. GAVAI",
+            "judgment_dates": "18-12-2024",
+            "temp_link": "supremecourt/2024/42571/42571_2024_2_3_57954_Judgement_18-Dec-2024.pdf (English)"
         },
         {
             "diary_no": "43719-2019",
