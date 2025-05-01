@@ -2,8 +2,8 @@ name: Download Metadata
 
 on:
   workflow_dispatch: {}  
-  schedule:
-  - cron: '36 16 * * *' # IST 10PM+
+  # schedule:
+  # - cron: '36 16 * * *' # IST 10PM+
 
 jobs:
   get-metadata:
