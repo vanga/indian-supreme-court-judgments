@@ -1,5 +1,6 @@
 from typing import Optional, Generator
-from tqdm import tqdm
+from PIL import Image
+from captcha_solver import get_text
 import argparse
 from datetime import datetime, timedelta
 import traceback
@@ -9,7 +10,6 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 import lxml.html as LH
-from http.cookies import SimpleCookie
 import urllib
 import easyocr
 import logging
@@ -18,7 +18,6 @@ import concurrent.futures
 import urllib3
 import uuid
 import time
-import tarfile
 import warnings
 import functools
 import colorlog
@@ -479,20 +478,9 @@ class Downloader:
         with open(captcha_filename, "wb") as f:
             f.write(captcha_response.content)
 
-        from PIL import Image
-
         pil_img = Image.open(captcha_filename)
-        from captcha_solver import get_text
 
         captcha_text = get_text(pil_img)
-        # result = reader.readtext(str(captcha_filename))
-        # if not result:
-        #     logger.warning(
-        #         f"No result from captcha, task: {self.task.id}, retries: {retries}"
-        #     )
-        #     return self.solve_captcha(retries + 1, captcha_url)
-
-        # captcha_text = result[0][1].strip()
 
         if MATH_CAPTCHA:
             try:
