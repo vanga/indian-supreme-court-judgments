@@ -21,6 +21,8 @@ import time
 import warnings
 import functools
 import colorlog
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 # Configure root logger with colors
 root_logger = logging.getLogger()
