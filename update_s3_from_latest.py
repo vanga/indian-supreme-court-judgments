@@ -323,7 +323,7 @@ def upload_new_zips_to_s3():
                 print("ERROR: No AWS credentials found.")
                 return
             
-            # Create S3 client with credentials from profile
+            # Create S3 client
             s3 = session.client('s3')
             print("Successfully authenticated with AWS")
         except Exception as e:
