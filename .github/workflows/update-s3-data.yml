@@ -1,0 +1,42 @@
+name: Update S3 Data
+
+on:
+  schedule:
+    - cron: "30 16 1,16 * *" # Runs at 10:30 PM IST on the 1st and 16th of every month
+  workflow_dispatch: {}
+
+jobs:
+  update-s3-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Update S3 data
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+        run: python3 update_s3_from_latest.py
+
+      - name: Commit and push if changes were made
+        run: |-
+          git config user.name "Automated"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          timestamp=$(date -u)
+          git commit -m "Updated S3 data: ${timestamp}" || exit 0
+          git push
+
+      - name: Create update record
+        run: |
+          echo "## S3 Update Status" >> $GITHUB_STEP_SUMMARY
+          echo "Updated at: $(date)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Log update timestamp
+        run: echo "::notice::S3 data updated at $(date)"

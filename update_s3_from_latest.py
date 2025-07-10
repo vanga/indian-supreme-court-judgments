@@ -317,7 +317,7 @@ def upload_new_zips_to_s3():
         # First, check if AWS credentials are configured
         try:
             # Try to get credentials - this will raise an exception if none are available
-            session = boto3.Session(profile_name="dattam-supreme")
+            session = boto3.Session()
             credentials = session.get_credentials()
             if credentials is None:
                 print("ERROR: No AWS credentials found.")
@@ -407,14 +407,15 @@ def get_latest_date_from_metadata(force_check_files=False):
     # First try to download the index.json file from S3
     s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
     current_year = datetime.now().year
-    index_path = os.path.join(LOCAL_DIR, f"sc-judgments-{current_year}-metadata.index.json")
-    index_key = f"{S3_PREFIX}sc-judgments-{current_year}-metadata.index.json"
+    idx_path = os.path.join(LOCAL_DIR, f"sc-judgments-{current_year}-metadata.index.json")
+    idx_key= f"{S3_PREFIX}sc-judgments-{current_year}-metadata.index.json"
     
     if not force_check_files:
         try:
             # Try to get current year index
-            s3.download_file(S3_BUCKET, index_key, index_path)
-            with open(index_path, 'r') as f:
+            os.makedirs(LOCAL_DIR, exist_ok=True) # Ensuring directory exists
+            s3.download_file(S3_BUCKET, idx_key, idx_path)
+            with open(idx_path, 'r') as f:
                 index_data = json.load(f)
                 
             # Check if updated_at is available

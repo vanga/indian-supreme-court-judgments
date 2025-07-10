@@ -203,3 +203,7 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+
+# Temporary Directory for S3 Updater
+local_sc_judgments_data/
