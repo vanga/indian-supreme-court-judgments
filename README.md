@@ -21,6 +21,8 @@ PDF judgmetns and the metadata can be downloaded from [Kaggle](https://www.kaggl
 * Some of the links like "judis/44700.pdf" need to be prefixed with "jonew/" to get a working url
 * Metadata also contains examples where the same judgment is part of multiple years. For ex, diary-no 17050-2006 appears with two judgment dates while the judgment pdf link is the same.
 
+---
+
 ## Dataset Size by Year
 
 | Year | Size (GB) |
@@ -103,6 +105,8 @@ PDF judgmetns and the metadata can be downloaded from [Kaggle](https://www.kaggl
 | 2025 | 0.104 |
 
 **Total Size Across All Years: 52.244 GB**
+
+---
 
 
 Shield: [![CC BY 4.0][cc-by-shield]][cc-by]
