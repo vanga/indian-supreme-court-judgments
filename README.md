@@ -25,7 +25,19 @@ PDF judgmetns and the metadata can be downloaded from [Kaggle](https://www.kaggl
 
 ## Dataset Size by Year
 
-| Year | Size (GB) |
+The dataset sizes are calculated using the `calculate_s3_sizes.py` script which accesses the public S3 bucket. The data is available in multiple formats:
+
+- **CSV Format**: [dataset_sizes_by_year.csv](./dataset_sizes_by_year.csv) - Machine-readable format for programmatic access
+- **Markdown Format**: [dataset_sizes_by_year.md](./dataset_sizes_by_year.md) - Human-readable format
+
+To update the size information, run:
+```bash
+python calculate_s3_sizes.py
+```
+
+This will generate updated CSV and markdown files with the latest dataset sizes.
+
+<!-- | Year | Size (GB) |
 |------|-----------|
 | 1950 | 0.095 |
 | 1951 | 0.137 |
@@ -58,7 +70,7 @@ PDF judgmetns and the metadata can be downloaded from [Kaggle](https://www.kaggl
 | 1978 | 0.434 |
 | 1979 | 0.395 |
 | 1980 | 0.377 |
-| 1981 | 0.342 |
+| 1981 | 0.341 |
 | 1982 | 0.357 |
 | 1983 | 0.296 |
 | 1984 | 0.337 |
@@ -72,16 +84,16 @@ PDF judgmetns and the metadata can be downloaded from [Kaggle](https://www.kaggl
 | 1992 | 0.535 |
 | 1993 | 0.584 |
 | 1994 | 0.675 |
-| 1995 | 1.300 |
+| 1995 | 1.299 |
 | 1996 | 2.507 |
-| 1997 | 1.372 |
+| 1997 | 1.371 |
 | 1998 | 0.757 |
 | 1999 | 0.782 |
 | 2000 | 0.646 |
 | 2001 | 0.725 |
 | 2002 | 0.844 |
 | 2003 | 0.894 |
-| 2004 | 0.778 |
+| 2004 | 0.777 |
 | 2005 | 0.573 |
 | 2006 | 0.797 |
 | 2007 | 1.201 |
@@ -100,14 +112,14 @@ PDF judgmetns and the metadata can be downloaded from [Kaggle](https://www.kaggl
 | 2020 | 1.686 |
 | 2021 | 1.894 |
 | 2022 | 2.271 |
-| 2023 | 2.056 |
+| 2023 | 2.055 |
 | 2024 | 1.734 |
-| 2025 | 0.104 |
+| 2025 | 0.103 |
 
-**Total Size Across All Years: 52.244 GB**
+**Total Size Across All Years: 52.239 GB**
 
 ---
-
+ -->
 
 Shield: [![CC BY 4.0][cc-by-shield]][cc-by]
 
