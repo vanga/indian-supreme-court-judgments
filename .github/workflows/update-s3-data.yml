@@ -22,7 +22,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
-        run: python3 update_s3_from_latest.py
+        run: python3 download.py --sync-s3
 
       - name: Commit and push if changes were made
         run: |-
