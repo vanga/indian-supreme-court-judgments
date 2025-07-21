@@ -1,8 +1,8 @@
 name: Update S3 Data
 
 on:
-  schedule:
-    - cron: "30 16 1,16 * *" # Runs at 10:30 PM IST on the 1st and 16th of every month
+  # schedule:
+    # - cron: "30 16 1,16 * *" # Runs at 10:30 PM IST on the 1st and 16th of every month
   workflow_dispatch: {}
 
 jobs:
