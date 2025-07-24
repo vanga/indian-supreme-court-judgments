@@ -32,8 +32,6 @@ To update the size and count information, run:
 python calculate_s3_sizes.py
 ```
 
-This will generate an updated CSV file with the latest dataset sizes and judgment counts.
-
 ---
 
 Shield: [![CC BY 4.0][cc-by-shield]][cc-by]
