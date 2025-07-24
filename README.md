@@ -21,7 +21,18 @@ PDF judgmetns and the metadata can be downloaded from [Kaggle](https://www.kaggl
 * Some of the links like "judis/44700.pdf" need to be prefixed with "jonew/" to get a working url
 * Metadata also contains examples where the same judgment is part of multiple years. For ex, diary-no 17050-2006 appears with two judgment dates while the judgment pdf link is the same.
 
+---
 
+## Dataset Size by Year
+
+The dataset sizes and judgment counts are available in machine-readable format: [dataset_sizes_by_year.csv](./dataset_sizes_by_year.csv)
+
+To update the size and count information, run:
+```bash
+python calculate_s3_sizes.py
+```
+
+---
 
 Shield: [![CC BY 4.0][cc-by-shield]][cc-by]
 
