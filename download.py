@@ -11,7 +11,6 @@ import requests
 from bs4 import BeautifulSoup
 import lxml.html as LH
 import urllib
-# import easyocr
 import logging
 import threading
 import concurrent.futures
@@ -62,7 +61,6 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", message=".*pin_memory.*not supported on MPS.*")
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# reader = easyocr.Reader(["en"])
 
 root_url = "https://scr.sci.gov.in"
 output_dir = Path("./sc_data")
@@ -313,8 +311,6 @@ class S3ArchiveManager:
         self.s3_bucket = s3_bucket
         self.s3_prefix = s3_prefix
         self.local_dir = Path(local_dir)
-        # session = boto3.Session(profile_name="dattam-supreme")
-        # self.s3 = session.client('s3', config=Config())
         self.s3 = boto3.client('s3')
         self.archives = {}
         self.indexes = {}
