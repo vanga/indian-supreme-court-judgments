@@ -3,7 +3,6 @@ import torch
 import onnx
 import onnxruntime as rt
 from torchvision import transforms as T
-from PIL import Image
 from tokenizer_base import Tokenizer
 
 

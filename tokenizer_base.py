@@ -1,4 +1,3 @@
-import re
 from abc import ABC, abstractmethod
 from itertools import groupby
 from typing import List, Optional, Tuple
@@ -28,7 +27,6 @@ class CharsetAdapter:
 
 
 class BaseTokenizer(ABC):
-
     def __init__(
         self, charset: str, specials_first: tuple = (), specials_last: tuple = ()
     ) -> None:

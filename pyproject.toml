@@ -1,0 +1,20 @@
+[project]
+name = "indian-supreme-court-judgments"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "onnx>=1.18.0",
+    "onnxruntime>=1.22.0",
+    "pillow>=11.2.1",
+    "tokenizers>=0.21.1",
+    "torch>=2.7.1",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.5",
+]
+
+[tool.ruff]

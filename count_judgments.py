@@ -6,7 +6,6 @@ Script to count judgments in zip files and their index files
 import json
 from pathlib import Path
 import logging
-import argparse
 from collections import defaultdict
 import zipfile
 
@@ -121,11 +120,6 @@ def count_judgments():
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Count judgments in zip files and their index files"
-    )
-    args = parser.parse_args()
-
     count_judgments()
 
 
