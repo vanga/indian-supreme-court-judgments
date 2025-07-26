@@ -1,31 +1,32 @@
-from typing import Optional, Generator
-from PIL import Image
-from captcha_solver import get_text
 import argparse
-from datetime import datetime, timedelta, timezone
-import traceback
-import re
-import json
-from pathlib import Path
-import requests
-from bs4 import BeautifulSoup
-import lxml.html as LH
-import urllib
-import logging
-import threading
 import concurrent.futures
-import urllib3
-import uuid
-import time
-import warnings
 import functools
-import colorlog
-import os
+import json
+import logging
+import re
+import shutil
+import threading
+import time
+import traceback
+import urllib
+import uuid
+import warnings
 import zipfile
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Generator, Optional
+
 import boto3
+import colorlog
+import lxml.html as LH
+import requests
+import urllib3
 from botocore import UNSIGNED
 from botocore.client import Config
-import shutil
+from bs4 import BeautifulSoup
+from PIL import Image
+
+from captcha_solver import get_text
 
 # Configure root logger with colors
 root_logger = logging.getLogger()
@@ -1090,14 +1091,14 @@ def sync_latest_metadata_zip(force_refresh=True):
         zips.sort(key=lambda k: int(re.search(r"(\d{4})", k).group(1)), reverse=True)
         latest_zip_key = zips[0]
 
-    local_path = LOCAL_DIR / os.path.basename(latest_zip_key)
+    local_path = LOCAL_DIR / Path(latest_zip_key).name
 
     # Force a fresh download if requested
-    if force_refresh and os.path.exists(local_path):
+    if force_refresh and local_path.exists():
         logger.info("Removing cached metadata zip to force refresh...")
-        os.remove(local_path)
+        local_path.unlink()
 
-    if not os.path.exists(local_path):
+    if not local_path.exists():
         logger.info(f"Downloading {latest_zip_key} ...")
         s3.download_file(S3_BUCKET, latest_zip_key, local_path)
     else:
