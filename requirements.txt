@@ -1,1 +1,13 @@
-pandas==2.2.0
+pandas
+boto3
+tqdm
+BeautifulSoup4
+pillow
+lxml
+easyocr
+colorlog
+urllib3
+requests
+torch
+onnx
+onnxruntime

@@ -2,7 +2,7 @@ from typing import Optional, Generator
 from PIL import Image
 from captcha_solver import get_text
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import traceback
 import re
 import json
@@ -11,7 +11,6 @@ import requests
 from bs4 import BeautifulSoup
 import lxml.html as LH
 import urllib
-import easyocr
 import logging
 import threading
 import concurrent.futures
@@ -21,6 +20,16 @@ import time
 import warnings
 import functools
 import colorlog
+import os
+import re
+import zipfile
+import subprocess
+import boto3
+from botocore import UNSIGNED
+from botocore.client import Config
+from tqdm import tqdm
+import shutil
+import tempfile
 
 # Configure root logger with colors
 root_logger = logging.getLogger()
@@ -52,7 +61,6 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", message=".*pin_memory.*not supported on MPS.*")
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-reader = easyocr.Reader(["en"])
 
 root_url = "https://scr.sci.gov.in"
 output_dir = Path("./sc_data")
@@ -75,6 +83,12 @@ temp_files_dir = Path("./temp-files")
 captcha_failures_dir.mkdir(parents=True, exist_ok=True)
 captcha_tmp_dir.mkdir(parents=True, exist_ok=True)
 temp_files_dir.mkdir(parents=True, exist_ok=True)
+
+S3_BUCKET = "indian-supreme-court-judgments-test"
+S3_PREFIX = "data/"
+LOCAL_DIR = "./local_sc_judgments_data"
+PACKAGES_DIR = "./packages"
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def get_json_file(file_path) -> dict:
@@ -225,10 +239,10 @@ def generate_tasks(
         yield SCDateTask(from_date, to_date)
 
 
-def process_task(task):
+def process_task(task, archive_manager=None):
     """Process a single date task"""
     try:
-        downloader = Downloader(task)
+        downloader = Downloader(task, archive_manager)
         downloader.download()
     except Exception as e:
         logger.error(f"Error processing task {task}: {e}")
@@ -236,7 +250,7 @@ def process_task(task):
 
 
 def run(
-    start_date=None, end_date=None, day_step=1, max_workers=5, package_on_startup=True
+    start_date=None, end_date=None, day_step=1, max_workers=5, package_on_startup=True, archive_manager=None
 ):
     """
     Run the downloader with optional parameters using Python's multiprocessing
@@ -269,7 +283,7 @@ def run(
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         # map automatically consumes the iterator and processes tasks in parallel
         # it returns results in the same order as the input iterator
-        for i, result in enumerate(executor.map(process_task, tasks)):
+        for i, result in enumerate(executor.map(lambda task: process_task(task, archive_manager), tasks)):
             # process_task doesn't return anything, so we're just tracking progress
             logger.info(f"Completed task {i+1}")
 
@@ -292,8 +306,98 @@ def run(
             traceback.print_exc()
 
 
+class S3ArchiveManager:
+    def __init__(self, s3_bucket, s3_prefix, local_dir):
+        self.s3_bucket = s3_bucket
+        self.s3_prefix = s3_prefix
+        self.local_dir = Path(local_dir)
+        self.s3 = boto3.client('s3')
+        self.archives = {}
+        self.indexes = {}
+        self.lock = threading.RLock()  # Reentrant lock for nested calls
+
+    def __enter__(self):
+        self.local_dir.mkdir(parents=True, exist_ok=True)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.upload_archives()
+
+    def get_archive(self, year, archive_type):
+        archive_name = f"sc-judgments-{year}-{archive_type}.zip"
+        index_name = f"sc-judgments-{year}-{archive_type}.index.json"
+
+        if archive_name in self.archives:
+            return self.archives[archive_name]
+
+        local_path = self.local_dir / archive_name
+        s3_key = f"{self.s3_prefix}{archive_name}"
+        index_s3_key = f"{self.s3_prefix}{index_name}"
+
+        try:
+            self.s3.head_object(Bucket=self.s3_bucket, Key=s3_key)
+            logger.info(f"Downloading existing archive: {s3_key}")
+            self.s3.download_file(self.s3_bucket, s3_key, str(local_path))
+            
+            # Download index
+            index_local_path = self.local_dir / index_name
+            self.s3.download_file(self.s3_bucket, index_s3_key, str(index_local_path))
+            with open(index_local_path, 'r') as f:
+                self.indexes[archive_name] = json.load(f)
+
+        except self.s3.exceptions.ClientError as e:
+            if '404' in str(e):
+                logger.info(f"Archive not found on S3, creating new one: {s3_key}")
+                self.indexes[archive_name] = {"files": [], "file_count": 0, "created_at": datetime.now().isoformat()}
+            else:
+                raise
+
+        archive = zipfile.ZipFile(local_path, 'a', zipfile.ZIP_DEFLATED)
+        self.archives[archive_name] = archive
+        return archive
+
+    def add_to_archive(self, year, archive_type, filename, content):
+        with self.lock:
+            archive = self.get_archive(year, archive_type)
+            archive.writestr(filename, content)
+            
+            archive_name = f"sc-judgments-{year}-{archive_type}.zip"
+            self.indexes[archive_name]["files"].append(filename)
+
+    def file_exists(self, year, archive_type, filename):
+        with self.lock:
+            archive_name = f"sc-judgments-{year}-{archive_type}.zip"
+            if archive_name not in self.indexes:
+                self.get_archive(year, archive_type) # This will load the index
+            
+            return filename in self.indexes[archive_name]["files"]
+
+    def upload_archives(self):
+        for archive_name, archive in self.archives.items():
+            archive.close()
+            local_path = self.local_dir / archive_name
+            s3_key = f"{self.s3_prefix}{archive_name}"
+            
+            # Update and write index
+            index_name = archive_name.replace(".zip", ".index.json")
+            index_local_path = self.local_dir / index_name
+            index_data = self.indexes[archive_name]
+            index_data["file_count"] = len(index_data["files"])
+            index_data["updated_at"] = datetime.now(IST).isoformat()
+
+            with open(index_local_path, 'w') as f:
+                json.dump(index_data, f, indent=2)
+
+            logger.info(f"Uploading archive: {s3_key}")
+            self.s3.upload_file(str(local_path), self.s3_bucket, s3_key)
+            
+            index_s3_key = f"{self.s3_prefix}{index_name}"
+            logger.info(f"Uploading index: {index_s3_key}")
+            self.s3.upload_file(str(index_local_path), self.s3_bucket, index_s3_key)
+
+
 class Downloader:
-    def __init__(self, task: SCDateTask):
+    def __init__(self, task: SCDateTask, archive_manager: S3ArchiveManager):
         self.task = task
         self.root_url = "https://scr.sci.gov.in"
         self.search_url = f"{self.root_url}/scrsearch/?p=pdf_search/home/"
@@ -313,6 +417,7 @@ class Downloader:
         self.session_id = None
         self.ecourts_token = None
         self.tar_checker = YearlyFileChecker()
+        self.archive_manager = archive_manager
 
     def _results_exist_in_search_response(self, res_dict):
         results_exist = (
@@ -360,7 +465,7 @@ class Downloader:
 
         # Check if metadata already exists
         metadata_filename = f"{pdf_info['path']}.json"
-        if not self.tar_checker.metadata_exists(year, metadata_filename):
+        if not self.archive_manager.file_exists(year, "metadata", metadata_filename):
             # Create metadata
             order_metadata = {
                 "raw_html": html,
@@ -370,42 +475,28 @@ class Downloader:
                 "scraped_at": datetime.now().isoformat(),
             }
 
-            # Get final path and save directly
-            final_metadata_path = self.tar_checker.get_metadata_path(
-                year, metadata_filename
-            )
-            final_metadata_path.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(final_metadata_path, "w") as f:
-                json.dump(order_metadata, f, indent=2)
+            self.archive_manager.add_to_archive(year, "metadata", metadata_filename, json.dumps(order_metadata, indent=2))
 
         # Download PDFs for each language
         pdfs_downloaded = 0
         for lang_code in language_codes:
             pdf_filename = self.get_pdf_filename(pdf_info["path"], lang_code)
+            archive_type = "english" if lang_code == "" else "regional"
 
             # Check if PDF already exists
-            if self.tar_checker.pdf_exists(year, pdf_filename, lang_code):
+            if self.archive_manager.file_exists(year, archive_type, pdf_filename):
                 continue  # Skip download
 
-            # Get final path and download directly
-            final_pdf_path = self.tar_checker.get_pdf_path(
-                year, pdf_filename, lang_code
-            )
-            final_pdf_path.parent.mkdir(parents=True, exist_ok=True)
-
             try:
-                success = self.download_pdf_to_file(final_pdf_path, pdf_info, lang_code)
-                if success:
+                pdf_content = self.download_pdf(pdf_info, lang_code)
+                if pdf_content:
+                    self.archive_manager.add_to_archive(year, archive_type, pdf_filename, pdf_content)
                     pdfs_downloaded += 1
             except Exception as e:
                 logger.error(
                     f"Error downloading {pdf_filename}: {e}, task: {self.task}"
                 )
                 traceback.print_exc()
-                # Clean up partial file on error
-                if final_pdf_path.exists():
-                    final_pdf_path.unlink()
 
         return pdfs_downloaded
 
@@ -769,8 +860,8 @@ class Downloader:
             logger.error(f"Error in download method: {e}")
             traceback.print_exc()
 
-    def download_pdf_to_file(self, final_pdf_path, pdf_info, lang_code):
-        """Download PDF directly to specified final file path"""
+    def download_pdf(self, pdf_info, lang_code):
+        """Download PDF and return its content"""
         val = pdf_info.get("val", "0")
         citation_year = pdf_info.get("citation_year", "")
         nc_display = pdf_info.get("nc_display", "")
@@ -790,7 +881,7 @@ class Downloader:
 
         if "outputfile" not in pdf_link_response.json():
             logger.error(f"Error downloading pdf: {pdf_link_response.json()}")
-            return False
+            return None
 
         pdf_download_link = pdf_link_response.json()["outputfile"]
         pdf_response = requests.request(
@@ -804,13 +895,9 @@ class Downloader:
         # Validate response
         no_of_bytes = len(pdf_response.content)
         if no_of_bytes == 0 or no_of_bytes == 315:  # Empty or 404 response
-            return False
+            return None
 
-        # Save directly to final path
-        with open(final_pdf_path, "wb") as f:
-            f.write(pdf_response.content)
-
-        return True
+        return pdf_response.content
 
     def get_pdf_filename(self, path, lang_code):
         """Get standardized PDF filename"""
@@ -955,6 +1042,136 @@ def timer_with_args(include_args=False, include_result=False):
 
     return decorator
 
+def sync_latest_metadata_zip(force_refresh=True):
+    """
+    Download the current year's metadata zip file from S3, or latest available.
+    If force_refresh is True, always download a fresh copy.
+    """
+    os.makedirs(LOCAL_DIR, exist_ok=True)
+    s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+    
+    # First try to get current year's metadata
+    current_year = datetime.now().year
+    current_year_key = f"{S3_PREFIX}sc-judgments-{current_year}-metadata.zip"
+    
+    # Check if current year metadata exists
+    try:
+        s3.head_object(Bucket=S3_BUCKET, Key=current_year_key)
+        latest_zip_key = current_year_key
+        logger.info(f"Found current year ({current_year}) metadata")
+    except:
+        # Fall back to finding the latest available year
+        logger.info(f"Current year metadata not found, finding latest available...")
+        zips = []
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                if re.match(rf"{S3_PREFIX}sc-judgments-\d{{4}}-metadata\.zip", key):
+                    zips.append(key)
+        if not zips:
+            raise Exception("No metadata zip files found")
+        # Sort by year in filename descending
+        zips.sort(key=lambda k: int(re.search(r"(\d{4})", k).group(1)), reverse=True)
+        latest_zip_key = zips[0]
+    
+    local_path = os.path.join(LOCAL_DIR, os.path.basename(latest_zip_key))
+    
+    # Force a fresh download if requested
+    if force_refresh and os.path.exists(local_path):
+        logger.info(f"Removing cached metadata zip to force refresh...")
+        os.remove(local_path)
+        
+    if not os.path.exists(local_path):
+        logger.info(f"Downloading {latest_zip_key} ...")
+        s3.download_file(S3_BUCKET, latest_zip_key, local_path)
+    else:
+        logger.info(f"Using cached metadata zip: {local_path}")
+        
+    return local_path
+
+def extract_decision_date_from_json(json_obj):
+    raw_html = json_obj.get("raw_html", "")
+    # Try to find DD-MM-YYYY after 'Decision Date'
+    m = re.search(r"Decision Date\s*:\s*<font[^>]*>\s*(\d{2}-\d{2}-\d{4})\s*</font>", raw_html)
+    if not m:
+        # Fallback: try to find any date pattern
+        m = re.search(r"(\d{2}-\d{2}-\d{4})", raw_html)
+        # print(m.group(1))
+    if m:
+        try:
+            # print(datetime.strptime(m.group(1), "%d-%m-%Y"))
+            return datetime.strptime(m.group(1), "%d-%m-%Y")
+        except Exception:
+            pass
+    return None
+
+def find_latest_decision_date_in_zip(zip_path):
+    latest_date = None
+    with zipfile.ZipFile(zip_path, "r") as z:
+        for name in z.namelist():
+            if not name.endswith('.json'):
+                continue
+            with z.open(name) as f:
+                try:
+                    data = json.load(f)
+                    decision_date = extract_decision_date_from_json(data)
+                    if decision_date and (latest_date is None or decision_date > latest_date):
+                        latest_date = decision_date
+                except Exception:
+                    continue
+    if latest_date:
+        logger.info(f"Latest decision date in metadata zip: {latest_date.date()}")
+    else:
+        logger.warning("No decision date found in metadata zip, falling back to ZIP entry date.")
+        # fallback (not recommended)
+        with zipfile.ZipFile(zip_path, "r") as z:
+            latest_date = max(datetime(*zi.date_time[:3]) for zi in z.infolist())
+    return latest_date
+
+def run_downloader(start_date, end_date):
+    logger.info(f"Fetching new data from {start_date} to {end_date} ...")
+    run(
+        start_date=(start_date + timedelta(days=1)).strftime("%Y-%m-%d"),
+        end_date=end_date.strftime("%Y-%m-%d")
+    )
+
+
+
+def get_latest_date_from_metadata(force_check_files=False):
+    """
+    Get the latest decision date from metadata, preferring index.json if available.
+    Falls back to parsing individual files if needed or if force_check_files=True.
+    """
+    # First try to download the index.json file from S3
+    s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED)  )
+    current_year = datetime.now().year
+    index_path = os.path.join(LOCAL_DIR, f"sc-judgments-{current_year}-metadata.index.json")
+    index_key = f"{S3_PREFIX}sc-judgments-{current_year}-metadata.index.json"
+
+    
+    if not force_check_files:
+        try:
+            # Try to get current year index
+            os.makedirs(LOCAL_DIR, exist_ok=True) # Ensuring directory exists
+            s3.download_file(S3_BUCKET, index_key, index_path)
+            with open(index_path, 'r') as f:
+                index_data = json.load(f)
+                
+            # Check if updated_at is available
+            if "updated_at" in index_data:
+                updated_at = datetime.fromisoformat(index_data["updated_at"])
+                logger.info(f"Found updated_at in index.json: {updated_at}")
+                return updated_at
+                
+        except Exception as e:
+            logger.info(f"Could not use index.json for date detection: {e}")
+    
+    # Fall back to the original method - parsing individual files
+    logger.info("Falling back to parsing individual files for decision dates...")
+    latest_zip = sync_latest_metadata_zip()
+    return find_latest_decision_date_in_zip(latest_zip)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -979,15 +1196,43 @@ if __name__ == "__main__":
         action="store_true",
         help="Skip packaging individual files into zip archives on startup/completion",
     )
+    parser.add_argument(
+        "--sync-s3",
+        action="store_true",
+        default=False,
+        help="Sync data from S3 before running the downloader",
+    )
     args = parser.parse_args()
 
-    run(
-        args.start_date,
-        args.end_date,
-        args.day_step,
-        args.max_workers,
-        package_on_startup=not args.no_package,
-    )
+    if args.sync_s3:
+        with S3ArchiveManager(S3_BUCKET, S3_PREFIX, LOCAL_DIR) as archive_manager:
+            latest_date = get_latest_date_from_metadata()
+            logger.info(f"Latest date in metadata: {latest_date.date() if latest_date else 'Unknown'}")
+            today = datetime.now().date()
+            if latest_date.date() < today:
+                run(
+                    start_date=(latest_date - timedelta(days=1)).strftime("%Y-%m-%d"),
+                    end_date=today.strftime("%Y-%m-%d"),
+                    archive_manager=archive_manager
+                )
+                logger.info("Download and packaging complete. Ready to upload new packages.")
+            else:
+                logger.info("No new data to fetch.")
+        
+        # Clean up LOCAL_DIR after processing
+        if os.path.exists(LOCAL_DIR):
+            logger.info(f"Cleaning up local data directory {LOCAL_DIR}...")
+            import shutil
+            shutil.rmtree(LOCAL_DIR, ignore_errors=True)
+            logger.info(f"✅ Local data directory deleted")
+    else:
+        run(
+            args.start_date,
+            args.end_date,
+            args.day_step,
+            args.max_workers,
+            package_on_startup=not args.no_package,
+        )
 
 """
 Supreme Court judgment scraper for scr.sci.gov.in
