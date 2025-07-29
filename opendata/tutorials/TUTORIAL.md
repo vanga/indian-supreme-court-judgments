@@ -98,10 +98,10 @@ with z.open(sample_file) as f:
     print(f"Sample content from {sample_file} (first 500 chars):")
     print(content[:500])
 ```
-<!-- TODO: REVIEW NEEDED -->
-<!-- ## 2. Analyzing Judgments by Year using Amazon Athena
 
-AWS Athena allows you to run SQL queries against the dataset. First, we'll need to set up tables to analyze the metadata:
+## 2. Analyzing Judgments by Year using Amazon Athena
+
+AWS Athena allows you to run SQL queries against the dataset. Here's how to set up tables and run useful analytical queries:
 
 ### Setting up Tables in Athena
 
@@ -109,82 +109,109 @@ AWS Athena allows you to run SQL queries against the dataset. First, we'll need 
 -- Create database
 CREATE DATABASE supreme_court_judgments;
 
--- Create external table for metadata indexes
-CREATE EXTERNAL TABLE supreme_court_judgments.metadata_indexes (
-  year STRING,
-  files ARRAY<
-    STRUCT<
-      filename: STRING,
-      case_number: STRING,
-      judgment_date: STRING,
-      bench: ARRAY<STRING>,
-      petitioner: STRING,
-      respondent: STRING
-    >
-  >
+-- Create external table for Supreme Court judgments
+CREATE EXTERNAL TABLE supreme_court_judgments.judgments (
+  title STRING,
+  petitioner STRING,
+  respondent STRING,
+  description STRING,
+  judge STRING,
+  author_judge STRING,
+  citation STRING,
+  case_id STRING,
+  cnr STRING,
+  decision_date STRING,
+  disposal_nature STRING,
+  court STRING,
+  available_languages STRING,
+  raw_html STRING,
+  path STRING,
+  nc_display STRING,
+  scraped_at STRING
 )
-ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
-WITH SERDEPROPERTIES (
-  'ignore.malformed.json' = 'true'
+PARTITIONED BY (year STRING)
+STORED AS PARQUET
+LOCATION 's3://indian-supreme-court-judgments/metadata/'
+TBLPROPERTIES (
+  'has_encrypted_data'='false',
+  'projection.enabled'='true',
+  'projection.year.type'='integer',
+  'projection.year.range'='1950,2025',
+  'storage.location.template'='s3://indian-supreme-court-judgments/metadata/year=${year}/metadata.parquet'
 )
-LOCATION 's3://indian-supreme-court-judgments/data/'
-TBLPROPERTIES ('has_encrypted_data'='false');
 ```
 
 ### Example Queries
 
 ```sql
 -- Count judgments by year
-WITH flattened AS (
-  SELECT 
-    SUBSTR(key, 21, 4) as year,
-    json_array_length(json_extract(index_content, '$')) as judgment_count
-  FROM 
-    s3_objects
-  WHERE 
-    bucket = 'indian-supreme-court-judgments' AND
-    key LIKE '%metadata.index.json'
-)
 SELECT 
   year,
-  judgment_count
+  COUNT(*) as judgment_count
 FROM 
-  flattened
+  supreme_court_judgments.judgments
+GROUP BY 
+  year
 ORDER BY 
   year DESC;
 
--- Find the most common case types (requires parsing the case numbers)
--- This is a simplified example as actual implementation would depend on the data format
-WITH case_numbers AS (
-  SELECT 
-    SUBSTR(file.case_number, 1, POSITION(' ' IN file.case_number)) as case_type
-  FROM 
-    metadata_indexes
-    CROSS JOIN UNNEST(files) as t(file)
-)
+-- Find the most active judges in 2024
 SELECT 
-  case_type, 
+  judge,
+  COUNT(*) as judgment_count
+FROM 
+  supreme_court_judgments.judgments
+WHERE 
+  year = '2024'
+GROUP BY 
+  judge
+ORDER BY 
+  judgment_count DESC
+LIMIT 10;
+
+-- Analyze disposal nature trends over time
+SELECT 
+  year,
+  disposal_nature,
   COUNT(*) as count
 FROM 
-  case_numbers
+  supreme_court_judgments.judgments
+WHERE 
+  year BETWEEN '2020' AND '2025'
+  AND disposal_nature IS NOT NULL
 GROUP BY 
-  case_type
+  year, disposal_nature
 ORDER BY 
-  count DESC
-LIMIT 10;
-``` -->
+  year DESC, count DESC;
 
-## 3. Creating a Simple Dashboard with QuickSight
+-- Find cases with specific petitioners
+SELECT 
+  title,
+  petitioner,
+  respondent,
+  decision_date,
+  citation
+FROM 
+  supreme_court_judgments.judgments
+WHERE 
+  petitioner LIKE '%Union of India%'
+  AND year = '2025'
+LIMIT 20;
 
-You can visualize the judgment data using Amazon QuickSight:
-
-1. Create an Athena data source in QuickSight
-2. Connect to the tables you created
-3. Create visualizations such as:
-   - Trend line of judgments per year
-   - Distribution of judgments by language
-   - Top judges by number of judgments
-
+-- Analyze case distribution by month in 2025
+SELECT 
+  SUBSTR(decision_date, 1, 7) as month,
+  COUNT(*) as case_count
+FROM 
+  supreme_court_judgments.judgments
+WHERE 
+  year = '2025'
+  AND decision_date IS NOT NULL
+GROUP BY 
+  SUBSTR(decision_date, 1, 7)
+ORDER BY 
+  month;
+```
 
 
 ## Conclusion
@@ -193,9 +220,6 @@ This tutorial has shown you how to:
 
 1. Access and explore the Indian Supreme Court Judgments dataset
 2. Analyze judgment metadata using AWS Athena
-3. Create visualizations using Amazon QuickSight
-4. Perform text analysis using Amazon Comprehend
-5. Build a simple search application using Elasticsearch
 
 These examples demonstrate the fundamental ways to work with this legal corpus, but there are many more advanced analyses possible, including:
 

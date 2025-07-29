@@ -13,14 +13,21 @@ The dataset is organized as follows:
 
 ```
 s3://indian-supreme-court-judgments/
-└── data/
-    ├── README.md
-    ├── sc-judgments-YYYY-english.zip
-    ├── sc-judgments-YYYY-english.index.json
-    ├── sc-judgments-YYYY-regional.zip
-    ├── sc-judgments-YYYY-regional.index.json
-    ├── sc-judgments-YYYY-metadata.zip
-    └── sc-judgments-YYYY-metadata.index.json
+├── data/
+│   └── zip/
+│       └── year=YYYY/
+│           ├── sc-judgments-YYYY-english.zip
+│           ├── sc-judgments-YYYY-english.index.json
+│           ├── sc-judgments-YYYY-regional.zip
+│           └── sc-judgments-YYYY-regional.index.json
+└── metadata/
+    ├── zip/
+    │   └── year=YYYY/
+    │       ├── sc-judgments-YYYY-metadata.zip
+    │       └── sc-judgments-YYYY-metadata.index.json
+    └── parquet/
+        └── year=YYYY/
+            └── metadata.parquet
 ```
 
 Where YYYY represents the year (1950-2025).
@@ -58,17 +65,17 @@ This dataset is available in the AWS Open Data Registry and can be accessed via:
 
 2. **Listing Available Years**:
    ```
-   aws s3 ls s3://indian-supreme-court-judgments/data/ --no-sign-request
+   aws s3 ls s3://indian-supreme-court-judgments/data/zip/ --no-sign-request
    ```
 
 3. **Downloading Index Files** (to preview content):
    ```
-   aws s3 cp s3://indian-supreme-court-judgments/data/sc-judgments-2023-english.index.json . --no-sign-request
+   aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/sc-judgments-2023-english.index.json . --no-sign-request
    ```
 
 4. **Downloading Judgment Files**:
    ```
-   aws s3 cp s3://indian-supreme-court-judgments/data/sc-judgments-2023-english.zip . --no-sign-request
+   aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/sc-judgments-2023-english.zip . --no-sign-request
    ```
 
 ### Example Use Cases
