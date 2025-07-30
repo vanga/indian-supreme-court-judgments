@@ -32,13 +32,13 @@ Index files provide information about the contents of each zip file without havi
 
 ```bash
 # Download an index file for English judgments from 2023
-aws s3 cp s3://indian-supreme-court-judgments/data/sc-judgments-2023-english.index.json . --no-sign-request
+aws s3 cp s3://indian-supreme-court-judgments/data/english.index.json . --no-sign-request
 
 # Examine the contents using jq (if installed)
-jq . sc-judgments-2023-english.index.json
+jq . english.index.json
 
 # Or using Python
-python -m json.tool sc-judgments-2023-english.index.json
+python -m json.tool english.index.json
 ```
 
 ### Using Python with boto3
@@ -71,7 +71,7 @@ for i, obj in enumerate(response['Contents']):
 # Download and read an index file
 obj = s3_client.get_object(
     Bucket='indian-supreme-court-judgments', 
-    Key='data/sc-judgments-2023-english.index.json'
+    Key='data/english.index.json'
 )
 index_content = json.loads(obj['Body'].read().decode('utf-8'))
 print(f"Index content structure: {index_content}")
@@ -82,7 +82,7 @@ if 'files' in index_content:
 # Download a zip file and extract its contents
 obj = s3_client.get_object(
     Bucket='indian-supreme-court-judgments', 
-    Key='data/sc-judgments-2023-english.zip'
+    Key='data/english.zip'
 )
 zip_content = obj['Body'].read()
 
