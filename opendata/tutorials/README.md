@@ -7,46 +7,21 @@ This repository contains judgments from the Supreme Court of India, made availab
 
 The Indian Supreme Court Judgments dataset contains court judgments delivered by the Supreme Court of India. The dataset covers judgments from 1950 to 2025 and is regularly updated.
 
-### Data Structure
-
-The dataset is organized as follows:
-
-```
-s3://indian-supreme-court-judgments/
-├── data/
-│   └── zip/
-│       └── year=YYYY/
-│           ├── sc-judgments-YYYY-english.zip
-│           ├── sc-judgments-YYYY-english.index.json
-│           ├── sc-judgments-YYYY-regional.zip
-│           └── sc-judgments-YYYY-regional.index.json
-└── metadata/
-    ├── zip/
-    │   └── year=YYYY/
-    │       ├── sc-judgments-YYYY-metadata.zip
-    │       └── sc-judgments-YYYY-metadata.index.json
-    └── parquet/
-        └── year=YYYY/
-            └── metadata.parquet
-```
-
-Where YYYY represents the year (1950-2025).
-
 ### Data Files
 
 Each year's data consists of three main components:
 
-1. **English Judgments** (`sc-judgments-YYYY-english.zip`):
+1. **English Judgments** (`english.zip`):
    - Contains judgments in English language for the specified year
-   - Each zip file has a corresponding index file (`sc-judgments-YYYY-english.index.json`) that provides information about the contained judgments
+   - Each zip file has a corresponding index file (`english.index.json`) that provides information about the contained judgments
 
-2. **Regional Language Judgments** (`sc-judgments-YYYY-regional.zip`):
+2. **Regional Language Judgments** (`regional.zip`):
    - Contains judgments in various regional Indian languages for the specified year
-   - Each zip file has a corresponding index file (`sc-judgments-YYYY-regional.index.json`) that provides information about the contained judgments
+   - Each zip file has a corresponding index file (`regional.index.json`) that provides information about the contained judgments
 
-3. **Metadata** (`sc-judgments-YYYY-metadata.zip`):
+3. **Metadata** (`metadata.zip`):
    - Contains metadata about judgments for the specified year
-   - Each zip file has a corresponding index file (`sc-judgments-YYYY-metadata.index.json`) that provides information about the contained metadata
+   - Each zip file has a corresponding index file (`metadata.index.json`) that provides information about the contained metadata
 
 ### Index Files
 
@@ -70,12 +45,12 @@ This dataset is available in the AWS Open Data Registry and can be accessed via:
 
 3. **Downloading Index Files** (to preview content):
    ```
-   aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/sc-judgments-2023-english.index.json . --no-sign-request
+   aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/english.index.json . --no-sign-request
    ```
 
 4. **Downloading Judgment Files**:
    ```
-   aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/sc-judgments-2023-english.zip . --no-sign-request
+   aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/english.zip . --no-sign-request
    ```
 
 ### Example Use Cases
