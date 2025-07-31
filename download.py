@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import shutil
+import tempfile
 import threading
 import time
 import traceback
@@ -19,6 +20,7 @@ from typing import Generator, Optional
 import boto3
 import colorlog
 import lxml.html as LH
+import pandas as pd
 import requests
 import urllib3
 from botocore import UNSIGNED
@@ -27,6 +29,9 @@ from bs4 import BeautifulSoup
 from PIL import Image
 
 from captcha_solver import get_text
+from process_metadata import (
+    SupremeCourtS3Processor,
+)
 
 # Configure root logger with colors
 root_logger = logging.getLogger()
@@ -82,7 +87,7 @@ captcha_tmp_dir.mkdir(parents=True, exist_ok=True)
 temp_files_dir.mkdir(parents=True, exist_ok=True)
 
 S3_BUCKET = "indian-supreme-court-judgments-test"
-S3_PREFIX = "data/"
+S3_PREFIX = ""
 LOCAL_DIR = Path("./local_sc_judgments_data")
 PACKAGES_DIR = Path("./packages")
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -328,15 +333,27 @@ class S3ArchiveManager:
         self.upload_archives()
 
     def get_archive(self, year, archive_type):
-        archive_name = f"sc-judgments-{year}-{archive_type}.zip"
-        index_name = f"sc-judgments-{year}-{archive_type}.index.json"
+        # New naming convention for archives
+        archive_name = f"{archive_type}.zip"
+        index_name = f"{archive_type}.index.json"
 
-        if archive_name in self.archives:
-            return self.archives[archive_name]
+        if (year, archive_type) in self.archives:
+            return self.archives[(year, archive_type)]
 
-        local_path = self.local_dir / archive_name
-        s3_key = f"{self.s3_prefix}{archive_name}"
-        index_s3_key = f"{self.s3_prefix}{index_name}"
+        # Create year directory structure if it doesn't exist
+        year_dir = self.local_dir / str(year)
+        year_dir.mkdir(parents=True, exist_ok=True)
+
+        local_path = year_dir / archive_name
+
+        # Determine the correct S3 prefix based on archive type
+        if archive_type == "metadata":
+            s3_dir = f"metadata/zip/year={year}/"
+        else:
+            s3_dir = f"data/zip/year={year}/"
+
+        s3_key = f"{s3_dir}{archive_name}"
+        index_s3_key = f"{s3_dir}{index_name}"
 
         try:
             self.s3.head_object(Bucket=self.s3_bucket, Key=s3_key)
@@ -344,15 +361,15 @@ class S3ArchiveManager:
             self.s3.download_file(self.s3_bucket, s3_key, str(local_path))
 
             # Download index
-            index_local_path = self.local_dir / index_name
+            index_local_path = year_dir / index_name
             self.s3.download_file(self.s3_bucket, index_s3_key, str(index_local_path))
             with open(index_local_path, "r") as f:
-                self.indexes[archive_name] = json.load(f)
+                self.indexes[(year, archive_type)] = json.load(f)
 
         except self.s3.exceptions.ClientError as e:
             if "404" in str(e):
                 logger.info(f"Archive not found on S3, creating new one: {s3_key}")
-                self.indexes[archive_name] = {
+                self.indexes[(year, archive_type)] = {
                     "files": [],
                     "file_count": 0,
                     "created_at": datetime.now().isoformat(),
@@ -361,7 +378,7 @@ class S3ArchiveManager:
                 raise
 
         archive = zipfile.ZipFile(local_path, "a", zipfile.ZIP_DEFLATED)
-        self.archives[archive_name] = archive
+        self.archives[(year, archive_type)] = archive
         return archive
 
     def add_to_archive(self, year, archive_type, filename, content):
@@ -369,29 +386,49 @@ class S3ArchiveManager:
             archive = self.get_archive(year, archive_type)
             archive.writestr(filename, content)
 
-            archive_name = f"sc-judgments-{year}-{archive_type}.zip"
-            self.indexes[archive_name]["files"].append(filename)
+            self.indexes[(year, archive_type)]["files"].append(filename)
 
     def file_exists(self, year, archive_type, filename):
         with self.lock:
-            archive_name = f"sc-judgments-{year}-{archive_type}.zip"
-            if archive_name not in self.indexes:
+            if (year, archive_type) not in self.indexes:
                 self.get_archive(year, archive_type)  # This will load the index
 
-            return filename in self.indexes[archive_name]["files"]
+            return filename in self.indexes[(year, archive_type)]["files"]
 
     def upload_archives(self):
-        for archive_name, archive in self.archives.items():
+        for (year, archive_type), archive in self.archives.items():
             archive.close()
-            local_path = self.local_dir / archive_name
-            s3_key = f"{self.s3_prefix}{archive_name}"
+
+            # Year directory structure
+            year_dir = self.local_dir / str(year)
+            archive_name = f"{archive_type}.zip"
+            local_path = year_dir / archive_name
+
+            # Determine the correct S3 prefix based on archive type
+            if archive_type == "metadata":
+                s3_dir = f"metadata/zip/year={year}/"
+            else:
+                s3_dir = f"data/zip/year={year}/"
+
+            s3_key = f"{s3_dir}{archive_name}"
 
             # Update and write index
-            index_name = archive_name.replace(".zip", ".index.json")
-            index_local_path = self.local_dir / index_name
-            index_data = self.indexes[archive_name]
+            index_name = f"{archive_type}.index.json"
+            index_local_path = year_dir / index_name
+            index_data = self.indexes[(year, archive_type)]
             index_data["file_count"] = len(index_data["files"])
             index_data["updated_at"] = datetime.now(IST).isoformat()
+
+            # Get and add the ZIP file size to the index
+            if local_path.exists():
+                zip_size_bytes = local_path.stat().st_size
+                # Store size in bytes
+                index_data["zip_size"] = zip_size_bytes
+                # Also store human-readable size for convenience
+                index_data["zip_size_human"] = self.format_file_size(zip_size_bytes)
+                logger.info(
+                    f"Archive {archive_name} size: {index_data['zip_size_human']}"
+                )
 
             with open(index_local_path, "w") as f:
                 json.dump(index_data, f, indent=2)
@@ -399,9 +436,27 @@ class S3ArchiveManager:
             logger.info(f"Uploading archive: {s3_key}")
             self.s3.upload_file(str(local_path), self.s3_bucket, s3_key)
 
-            index_s3_key = f"{self.s3_prefix}{index_name}"
+            index_s3_key = f"{s3_dir}{index_name}"
             logger.info(f"Uploading index: {index_s3_key}")
             self.s3.upload_file(str(index_local_path), self.s3_bucket, index_s3_key)
+
+    def format_file_size(self, size_bytes):
+        """Convert bytes to a human-readable format"""
+        # Define units and their respective sizes in bytes
+        units = ["B", "KB", "MB", "GB", "TB"]
+        size = float(size_bytes)
+        unit_index = 0
+
+        # Find the appropriate unit
+        while size >= 1024.0 and unit_index < len(units) - 1:
+            size /= 1024.0
+            unit_index += 1
+
+        # Format with 2 decimal places if not bytes
+        if unit_index == 0:
+            return f"{int(size)} {units[unit_index]}"
+        else:
+            return f"{size:.2f} {units[unit_index]}"
 
 
 class Downloader:
@@ -1068,7 +1123,7 @@ def sync_latest_metadata_zip(force_refresh=True):
 
     # First try to get current year's metadata
     current_year = datetime.now().year
-    current_year_key = f"{S3_PREFIX}sc-judgments-{current_year}-metadata.zip"
+    current_year_key = f"metadata/zip/year={current_year}/metadata.zip"
 
     # Check if current year metadata exists
     try:
@@ -1079,19 +1134,39 @@ def sync_latest_metadata_zip(force_refresh=True):
         # Fall back to finding the latest available year
         logger.info("Current year metadata not found, finding latest available...")
         zips = []
+
+        # Search for metadata zip files in the new structure
         paginator = s3.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):
-            for obj in page.get("Contents", []):
+        prefix = "metadata/zip/"
+
+        for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
+            if "Contents" not in page:
+                continue
+
+            for obj in page["Contents"]:
                 key = obj["Key"]
-                if re.match(rf"{S3_PREFIX}sc-judgments-\d{{4}}-metadata\.zip", key):
-                    zips.append(key)
+                if key.endswith("/metadata.zip"):
+                    # Extract year from path like metadata/zip/year=2023/metadata.zip
+                    year_match = re.search(r"year=(\d{4})/", key)
+                    if year_match:
+                        zips.append((key, int(year_match.group(1))))
+
         if not zips:
             raise Exception("No metadata zip files found")
-        # Sort by year in filename descending
-        zips.sort(key=lambda k: int(re.search(r"(\d{4})", k).group(1)), reverse=True)
-        latest_zip_key = zips[0]
 
-    local_path = LOCAL_DIR / Path(latest_zip_key).name
+        # Sort by year descending and take the most recent
+        zips.sort(key=lambda x: x[1], reverse=True)
+        latest_zip_key = zips[0][0]
+
+    # Create year directory for the zip file
+    year_match = re.search(r"year=(\d{4})/", latest_zip_key)
+    if year_match:
+        year = year_match.group(1)
+        year_dir = LOCAL_DIR / year
+        year_dir.mkdir(parents=True, exist_ok=True)
+        local_path = year_dir / "metadata.zip"
+    else:
+        local_path = LOCAL_DIR / Path(latest_zip_key).name
 
     # Force a fresh download if requested
     if force_refresh and local_path.exists():
@@ -1170,13 +1245,18 @@ def get_latest_date_from_metadata(force_check_files=False):
     # First try to download the index.json file from S3
     s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
     current_year = datetime.now().year
-    index_path = LOCAL_DIR / f"sc-judgments-{current_year}-metadata.index.json"
-    index_key = f"{S3_PREFIX}sc-judgments-{current_year}-metadata.index.json"
+
+    # Updated path for metadata index
+    index_path = LOCAL_DIR / str(current_year) / "metadata.index.json"
+    index_key = f"metadata/zip/year={current_year}/metadata.index.json"
 
     if not force_check_files:
         try:
+            # Ensure year directory exists
+            year_dir = LOCAL_DIR / str(current_year)
+            year_dir.mkdir(parents=True, exist_ok=True)
+
             # Try to get current year index
-            LOCAL_DIR.mkdir(parents=True, exist_ok=True)  # Ensuring directory exists
             s3.download_file(S3_BUCKET, index_key, str(index_path))
             with open(index_path, "r") as f:
                 index_data = json.load(f)
@@ -1194,6 +1274,160 @@ def get_latest_date_from_metadata(force_check_files=False):
     logger.info("Falling back to parsing individual files for decision dates...")
     latest_zip = sync_latest_metadata_zip()
     return find_latest_decision_date_in_zip(latest_zip)
+
+
+def generate_parquet_from_metadata(s3_bucket, years_to_process=None):
+    """
+    Process metadata files in S3 and generate parquet files
+
+    Args:
+        s3_bucket: S3 bucket name where metadata files are stored
+        years_to_process: Optional list of years to process (if None, process all)
+    """
+    logger.info("Starting metadata to parquet conversion...")
+    processor = SupremeCourtS3Processor(
+        s3_bucket=s3_bucket,
+        s3_prefix="",
+        batch_size=10000,
+        years_to_process=years_to_process,  # Pass years to process
+    )
+
+    processed_years, total_records = processor.process_bucket_metadata()
+
+    if total_records > 0:
+        logger.info(
+            f"Successfully processed {total_records} records across {len(processed_years)} years"
+        )
+    else:
+        logger.warning("No metadata records were processed to parquet format")
+
+    return total_records > 0
+
+
+def generate_parquet_from_local_metadata(local_dir, s3_bucket):
+    """
+    Process metadata files from local directory only and append to S3 parquet files
+
+    Args:
+        local_dir: Local directory with newly downloaded files
+        s3_bucket: S3 bucket name for output
+    """
+    logger.info("Processing newly downloaded metadata to parquet...")
+
+    # Track all processed records
+    total_records = 0
+    processed_years = set()
+
+    # Create S3 client for uploading
+    s3 = boto3.client("s3")
+
+    # For each year directory in local_dir
+    for year_dir in Path(local_dir).glob("*"):
+        if not year_dir.is_dir() or not year_dir.name.isdigit():
+            continue
+
+        year = year_dir.name
+        processed_years.add(year)
+        logger.info(f"Processing local metadata for year: {year}")
+
+        # Check if this year has metadata files
+        metadata_zip = year_dir / "metadata.zip"
+        if not metadata_zip.exists():
+            logger.info(f"No metadata.zip found for year {year}, skipping")
+            continue
+
+        # Verify it's a valid zip file before processing
+        try:
+            # Test open the zip file to validate it
+            with zipfile.ZipFile(metadata_zip, "r") as test_zip:
+                file_count = len(test_zip.namelist())
+                logger.info(f"Found valid metadata.zip with {file_count} files")
+
+                # Process the metadata files
+                records = []
+                for filename in test_zip.namelist():
+                    if filename.endswith(".json"):
+                        with test_zip.open(filename) as f:
+                            try:
+                                metadata = json.load(f)
+                                processed = (
+                                    SupremeCourtS3Processor.process_metadata_static(
+                                        metadata, year
+                                    )
+                                )
+                                if processed:
+                                    records.append(processed)
+                            except json.JSONDecodeError:
+                                logger.warning(f"Invalid JSON in {filename}, skipping")
+        except zipfile.BadZipFile:
+            logger.error(f"Invalid zip file for year {year}: {metadata_zip}")
+
+            # Try downloading from S3 instead
+            s3_key = f"metadata/zip/year={year}/metadata.zip"
+            temp_zip = year_dir / "metadata_temp.zip"
+
+            try:
+                logger.info(f"Attempting to download metadata from S3: {s3_key}")
+                s3.download_file(s3_bucket, s3_key, str(temp_zip))
+
+                with zipfile.ZipFile(temp_zip, "r") as z:
+                    records = []
+                    for filename in z.namelist():
+                        if filename.endswith(".json"):
+                            with z.open(filename) as f:
+                                metadata = json.load(f)
+                                processed = (
+                                    SupremeCourtS3Processor.process_metadata_static(
+                                        metadata, year
+                                    )
+                                )
+                                if processed:
+                                    records.append(processed)
+            except Exception as s3_err:
+                logger.error(f"Failed to recover metadata from S3: {s3_err}")
+                continue
+
+        except Exception as e:
+            logger.error(f"Error processing metadata for year {year}: {e}")
+            continue
+
+        # If we found records, write them to parquet
+        if records:
+            total_records += len(records)
+            logger.info(f"Found {len(records)} records for year {year}")
+
+            # Convert to DataFrame with proper schema
+            df = pd.DataFrame(records)
+
+            # Write to temp parquet file
+            with tempfile.NamedTemporaryFile(
+                suffix=".parquet", delete=True
+            ) as tmp_file:
+                df.to_parquet(tmp_file.name, compression="snappy")
+
+                # Target S3 path for this year
+                s3_key = f"metadata/parquet/year={year}/metadata.parquet"
+
+                # Check if existing parquet file exists, and merge if so
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".parquet", delete=True
+                    ) as existing_file:
+                        s3.download_file(s3_bucket, s3_key, existing_file.name)
+                        existing_df = pd.read_parquet(existing_file.name)
+                        df = pd.concat([existing_df, df], ignore_index=True)
+                        df.to_parquet(tmp_file.name, compression="snappy")
+                except Exception as e:
+                    logger.info(f"Creating new parquet file for year {year}: {e}")
+
+                # Upload to S3
+                s3.upload_file(tmp_file.name, s3_bucket, s3_key)
+                logger.info(f"Uploaded metadata for year {year} to S3")
+
+    logger.info(
+        f"Processed {total_records} records across {len(processed_years)} years"
+    )
+    return total_records > 0
 
 
 if __name__ == "__main__":
@@ -1243,13 +1477,29 @@ if __name__ == "__main__":
                 logger.info(
                     "Download and packaging complete. Ready to upload new packages."
                 )
-            else:
-                logger.info("No new data to fetch.")
+
+        # AFTER the with block completes (archives are now uploaded to S3)
+        # Determine which years were just downloaded
+        downloaded_years = set()
+        for year_dir in LOCAL_DIR.glob("*"):
+            if year_dir.is_dir() and year_dir.name.isdigit():
+                downloaded_years.add(year_dir.name)
+
+        if downloaded_years:
+            logger.info(f"Found new data for years: {sorted(downloaded_years)}")
+            # Process metadata AFTER archives are uploaded to S3
+            logger.info(
+                f"Processing metadata files for years: {sorted(downloaded_years)}..."
+            )
+
+            # Now use the standard S3 processor since files are already uploaded
+            generate_parquet_from_metadata(S3_BUCKET, downloaded_years)
+        else:
+            logger.info("No new years to process for parquet conversion.")
 
         # Clean up LOCAL_DIR after processing
         if LOCAL_DIR.exists():
             logger.info(f"Cleaning up local data directory {LOCAL_DIR}...")
-
             shutil.rmtree(LOCAL_DIR, ignore_errors=True)
             logger.info("✅ Local data directory deleted")
     else:
