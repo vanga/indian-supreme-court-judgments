@@ -5,11 +5,20 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "beautifulsoup4>=4.13.4",
+    "boto3>=1.40.1",
+    "colorlog>=6.9.0",
+    "easyocr>=1.7.2",
+    "lxml>=6.0.0",
     "onnx>=1.18.0",
     "onnxruntime>=1.22.0",
+    "pandas>=2.3.1",
     "pillow>=11.2.1",
+    "requests>=2.32.4",
     "tokenizers>=0.21.1",
     "torch>=2.7.1",
+    "tqdm>=4.67.1",
+    "urllib3>=2.4.0",
 ]
 
 [dependency-groups]
