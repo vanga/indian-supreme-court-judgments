@@ -5,6 +5,9 @@ on:
   # schedule:
   #   - cron: "30 16 * * 5" # Runs at 10:30 PM IST every Friday
 
+env:
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
 jobs:
   update-s3-data:
     runs-on: ubuntu-latest
@@ -22,9 +25,11 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --locked --all-extras --dev
+      - name: Authenticate with AWS using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions
+          aws-region: ap-south-1
 
       - name: Update S3 data
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: uv run download.py --sync-s3
