@@ -86,7 +86,7 @@ captcha_failures_dir.mkdir(parents=True, exist_ok=True)
 captcha_tmp_dir.mkdir(parents=True, exist_ok=True)
 temp_files_dir.mkdir(parents=True, exist_ok=True)
 
-S3_BUCKET = "indian-supreme-court-judgments-test"
+S3_BUCKET = "indian-supreme-court-judgments"
 S3_PREFIX = ""
 LOCAL_DIR = Path("./local_sc_judgments_data")
 PACKAGES_DIR = Path("./packages")
@@ -94,9 +94,17 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def get_json_file(file_path) -> dict:
-    with open(file_path, "r") as f:
-        return json.load(f)
-
+    try:
+        with open(file_path, 'r') as f:
+            content = f.read().strip()
+            if not content:
+                return {}  # Return empty dict for empty file
+            return json.loads(content)
+    except FileNotFoundError:
+        return {}  # Return empty dict if file doesn't exist
+    except json.JSONDecodeError:
+        logging.warning(f"Invalid JSON in {file_path}, returning empty dict")
+        return {}
 
 def get_tracking_data():
     try:
