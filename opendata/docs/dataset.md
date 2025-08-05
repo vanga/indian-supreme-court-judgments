@@ -5,8 +5,7 @@ This dataset contains judgements from the Indian Supreme Court, downloaded from 
 
 ## Data
 * Comprehensive coverage from 1950 to 2025
-* ~35K judgments
-* ~52GB of data
+* ~52GB of data (see [dataset_sizes.csv](../../dataset_sizes.csv) for detailed breakdown)
 * Both English and regional language versions
 * Detailed metadata for each judgment
 * Code used to download and process the data is [here](https://github.com/vanga/indian-supreme-court-judgments)
