@@ -2,7 +2,7 @@ PDF judgements and the metadata can be downloaded from [Kaggle](https://www.kagg
 
 ## Data Schema in parquet
 
-**Total Dataset Size: ~52.14 GB**
+**Total Dataset Size: ~52.24 GB**
 **Detailed breakdown:** [dataset_sizes.csv](dataset_sizes.csv)
 
 
