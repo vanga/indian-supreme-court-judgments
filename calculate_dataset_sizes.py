@@ -90,49 +90,6 @@ def create_csv_report(year_sizes):
     return csv_file, bytes_to_gb(total_size)
 
 
-def update_readme(total_size_gb, csv_file):
-    """Update README.md with dataset size"""
-    readme_file = "README.md"
-    
-    # Read existing README or create new one
-    if Path(readme_file).exists():
-        with open(readme_file, 'r') as f:
-            content = f.read()
-    else:
-        content = "# Indian Supreme Court Judgments Dataset\n\n"
-    
-    # Update or add size information
-    size_info = f"**Total Dataset Size: ~{total_size_gb} GB**"
-    csv_info = f"**Detailed breakdown:** [{csv_file}]({csv_file})"
-    
-    # Simple pattern replacement
-    if "Total Dataset Size:" in content:
-        content = re.sub(r'\*\*Total Dataset Size:.*?\*\*', size_info, content)
-    else:
-        # Add after first heading
-        lines = content.split('\n')
-        for i, line in enumerate(lines):
-            if line.startswith('#'):
-                lines.insert(i + 1, f"\n{size_info}")
-                lines.insert(i + 2, f"{csv_info}\n")
-                break
-        content = '\n'.join(lines)
-    
-    # Update CSV reference
-    if csv_file in content:
-        # Replace existing CSV link
-        content = re.sub(r'\[.*?\.csv\]\(.*?\.csv\)', f'[{csv_file}]({csv_file})', content)
-    elif "Detailed breakdown:" not in content:
-        # Add CSV reference if not present
-        if size_info in content:
-            content = content.replace(size_info, f"{size_info}\n{csv_info}")
-    
-    with open(readme_file, 'w') as f:
-        f.write(content)
-    
-    logger.info(f"Updated {readme_file}")
-
-
 def main():
     """Main function"""
     print("Calculating dataset sizes...")
@@ -147,20 +104,14 @@ def main():
     # Create CSV report
     csv_file, total_gb = create_csv_report(year_sizes)
     
-    # Update README
-    update_readme(total_gb, csv_file)
-    
     # Summary
     print(f"\nSummary:")
     print(f"   Years covered: {min(year_sizes.keys())} - {max(year_sizes.keys())}")
     print(f"   Total years: {len(year_sizes)}")
     print(f"   Total size: {total_gb} GB")
     print(f"   CSV report: {csv_file}")
-    print(f"   README updated")
     print("\nDone!")
 
 
 if __name__ == "__main__":
     main()
-
-
