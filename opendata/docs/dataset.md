@@ -1,3 +1,5 @@
+(OUTDATED: Please refer to the [main README.md](../../README.md) for the most up-to-date information)
+
 # Indian Supreme Court Judgments
 
 ### Summary
