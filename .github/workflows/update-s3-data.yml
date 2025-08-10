@@ -34,3 +34,15 @@ jobs:
 
       - name: Update S3 data
         run: uv run download.py --sync-s3
+
+      - name: Update dataset sizes
+        run: uv run calculate_dataset_sizes.py
+        
+      - name: Commit and push changes
+        run: |
+          git config user.name "Automated"
+          git config user.email "github-actions@example.com"
+          git add -A
+          timestamp=$(date -u)
+          git commit -m "Update dataset sizes" || exit 0
+          git push
