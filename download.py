@@ -4,7 +4,6 @@ import functools
 import json
 import logging
 import re
-import shutil
 import tempfile
 import threading
 import time
@@ -86,7 +85,7 @@ captcha_failures_dir.mkdir(parents=True, exist_ok=True)
 captcha_tmp_dir.mkdir(parents=True, exist_ok=True)
 temp_files_dir.mkdir(parents=True, exist_ok=True)
 
-S3_BUCKET = "indian-supreme-court-judgments-test"
+S3_BUCKET = "indian-supreme-court-judgments"
 S3_PREFIX = ""
 LOCAL_DIR = Path("./local_sc_judgments_data")
 PACKAGES_DIR = Path("./packages")
@@ -94,8 +93,17 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def get_json_file(file_path) -> dict:
-    with open(file_path, "r") as f:
-        return json.load(f)
+    try:
+        with open(file_path, "r") as f:
+            content = f.read().strip()
+            if not content:
+                return {}  # Return empty dict for empty file
+            return json.loads(content)
+    except FileNotFoundError:
+        return {}  # Return empty dict if file doesn't exist
+    except json.JSONDecodeError:
+        logging.warning(f"Invalid JSON in {file_path}, returning empty dict")
+        return {}
 
 
 def get_tracking_data():
@@ -960,6 +968,7 @@ class Downloader:
             verify=False,
             headers=self.get_headers(),
             timeout=30,
+            allow_redirects=True,
         )
 
         # Validate response
@@ -1246,16 +1255,16 @@ def get_latest_date_from_metadata(force_check_files=False):
     s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
     current_year = datetime.now().year
 
-    # Updated path for metadata index
-    index_path = LOCAL_DIR / str(current_year) / "metadata.index.json"
+    # Create a separate directory for index files outside of LOCAL_DIR
+    index_cache_dir = Path("./index_cache")
+    index_cache_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Updated path for metadata index - store outside LOCAL_DIR
+    index_path = index_cache_dir / f"{current_year}_metadata.index.json"
     index_key = f"metadata/zip/year={current_year}/metadata.index.json"
 
     if not force_check_files:
         try:
-            # Ensure year directory exists
-            year_dir = LOCAL_DIR / str(current_year)
-            year_dir.mkdir(parents=True, exist_ok=True)
-
             # Try to get current year index
             s3.download_file(S3_BUCKET, index_key, str(index_path))
             with open(index_path, "r") as f:
@@ -1479,29 +1488,28 @@ if __name__ == "__main__":
                 )
 
         # AFTER the with block completes (archives are now uploaded to S3)
-        # Determine which years were just downloaded
-        downloaded_years = set()
-        for year_dir in LOCAL_DIR.glob("*"):
-            if year_dir.is_dir() and year_dir.name.isdigit():
-                downloaded_years.add(year_dir.name)
+        # Check if any new files were actually downloaded in this run
+        if latest_date.date() < today:
+            # Only process if we actually ran the downloader and found new data
+            logger.info("Checking for newly downloaded data...")
+            downloaded_years = set()
+            for year_dir in LOCAL_DIR.glob("*"):
+                if year_dir.is_dir() and year_dir.name.isdigit():
+                    downloaded_years.add(year_dir.name)
 
-        if downloaded_years:
-            logger.info(f"Found new data for years: {sorted(downloaded_years)}")
-            # Process metadata AFTER archives are uploaded to S3
-            logger.info(
-                f"Processing metadata files for years: {sorted(downloaded_years)}..."
-            )
+            if downloaded_years:
+                logger.info(f"Found new data for years: {sorted(downloaded_years)}")
+                # Process metadata AFTER archives are uploaded to S3
+                logger.info(
+                    f"Processing metadata files for years: {sorted(downloaded_years)}..."
+                )
 
-            # Now use the standard S3 processor since files are already uploaded
-            generate_parquet_from_metadata(S3_BUCKET, downloaded_years)
+                # Now use the standard S3 processor since files are already uploaded
+                generate_parquet_from_metadata(S3_BUCKET, downloaded_years)
+            else:
+                logger.info("No new files downloaded. Skipping parquet conversion.")
         else:
-            logger.info("No new years to process for parquet conversion.")
-
-        # Clean up LOCAL_DIR after processing
-        if LOCAL_DIR.exists():
-            logger.info(f"Cleaning up local data directory {LOCAL_DIR}...")
-            shutil.rmtree(LOCAL_DIR, ignore_errors=True)
-            logger.info("✅ Local data directory deleted")
+            logger.info("Data is already up to date. Skipping parquet conversion.")
     else:
         run(
             args.start_date,
