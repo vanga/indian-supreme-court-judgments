@@ -2,8 +2,8 @@ name: Update S3 Data
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "30 16 * * 5" # Runs at 10:30 PM IST every Friday
+  schedule:
+    - cron: "30 16 * * 5" # Runs at 10:30 PM IST every Friday
 
 env:
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
