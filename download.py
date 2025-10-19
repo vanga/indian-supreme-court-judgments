@@ -398,7 +398,10 @@ class S3ArchiveManager:
 
     def upload_archives(self):
         # Only upload archives that were actually modified
-        for year, archive_type in self.modified_archives:
+        # Convert to list to avoid issues with set iteration
+        modified_list = list(self.modified_archives)
+
+        for year, archive_type in modified_list:
             if (year, archive_type) not in self.archives:
                 continue
 

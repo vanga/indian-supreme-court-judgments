@@ -326,7 +326,8 @@ class SupremeCourtS3Processor:
             except Exception:
                 pass
 
-        return len(records)
+        # Return the actual number of records written (after deduplication)
+        return len(df)
 
     def process_metadata(self, metadata: dict, year=None) -> Optional[dict]:
         """
