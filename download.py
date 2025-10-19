@@ -29,9 +29,7 @@ from bs4 import BeautifulSoup
 from PIL import Image
 
 from captcha_solver import get_text
-from process_metadata import (
-    SupremeCourtS3Processor,
-)
+from process_metadata import SupremeCourtS3Processor
 
 # Configure root logger with colors
 root_logger = logging.getLogger()
@@ -324,6 +322,7 @@ class S3ArchiveManager:
         self.archives = {}
         self.indexes = {}
         self.lock = threading.RLock()  # Reentrant lock for nested calls
+        self.modified_archives = set()  # Track which archives had new files added
 
     def __enter__(self):
         self.local_dir.mkdir(parents=True, exist_ok=True)
@@ -372,7 +371,7 @@ class S3ArchiveManager:
                 self.indexes[(year, archive_type)] = {
                     "files": [],
                     "file_count": 0,
-                    "created_at": datetime.now().isoformat(),
+                    "created_at": datetime.now(IST).isoformat(),
                 }
             else:
                 raise
@@ -387,6 +386,8 @@ class S3ArchiveManager:
             archive.writestr(filename, content)
 
             self.indexes[(year, archive_type)]["files"].append(filename)
+            # Mark this archive as modified
+            self.modified_archives.add((year, archive_type))
 
     def file_exists(self, year, archive_type, filename):
         with self.lock:
@@ -396,7 +397,12 @@ class S3ArchiveManager:
             return filename in self.indexes[(year, archive_type)]["files"]
 
     def upload_archives(self):
-        for (year, archive_type), archive in self.archives.items():
+        # Only upload archives that were actually modified
+        for year, archive_type in self.modified_archives:
+            if (year, archive_type) not in self.archives:
+                continue
+
+            archive = self.archives[(year, archive_type)]
             archive.close()
 
             # Year directory structure
@@ -412,12 +418,14 @@ class S3ArchiveManager:
 
             s3_key = f"{s3_dir}{archive_name}"
 
-            # Update and write index
+            # Update and write index - ONLY update updated_at since files were added
             index_name = f"{archive_type}.index.json"
             index_local_path = year_dir / index_name
             index_data = self.indexes[(year, archive_type)]
             index_data["file_count"] = len(index_data["files"])
-            index_data["updated_at"] = datetime.now(IST).isoformat()
+            index_data["updated_at"] = datetime.now(
+                IST
+            ).isoformat()  # Only updated when files were actually added
 
             # Get and add the ZIP file size to the index
             if local_path.exists():
@@ -439,6 +447,12 @@ class S3ArchiveManager:
             index_s3_key = f"{s3_dir}{index_name}"
             logger.info(f"Uploading index: {index_s3_key}")
             self.s3.upload_file(str(index_local_path), self.s3_bucket, index_s3_key)
+
+        # Close any archives that were opened but not modified
+        for (year, archive_type), archive in self.archives.items():
+            if (year, archive_type) not in self.modified_archives:
+                archive.close()
+                logger.debug(f"Closed unmodified archive: {year}/{archive_type}")
 
     def format_file_size(self, size_bytes):
         """Convert bytes to a human-readable format"""
@@ -1399,30 +1413,63 @@ def generate_parquet_from_local_metadata(local_dir, s3_bucket):
             # Convert to DataFrame with proper schema
             df = pd.DataFrame(records)
 
-            # Write to temp parquet file
-            with tempfile.NamedTemporaryFile(
-                suffix=".parquet", delete=True
-            ) as tmp_file:
-                df.to_parquet(tmp_file.name, compression="snappy")
+            # Target S3 path for this year
+            s3_key = f"metadata/parquet/year={year}/metadata.parquet"
 
-                # Target S3 path for this year
-                s3_key = f"metadata/parquet/year={year}/metadata.parquet"
+            # Check if existing parquet file exists, and merge if so
+            try:
+                with tempfile.NamedTemporaryFile(
+                    suffix=".parquet", delete=False
+                ) as existing_file:
+                    existing_path = Path(existing_file.name)
 
-                # Check if existing parquet file exists, and merge if so
                 try:
-                    with tempfile.NamedTemporaryFile(
-                        suffix=".parquet", delete=True
-                    ) as existing_file:
-                        s3.download_file(s3_bucket, s3_key, existing_file.name)
-                        existing_df = pd.read_parquet(existing_file.name)
-                        df = pd.concat([existing_df, df], ignore_index=True)
-                        df.to_parquet(tmp_file.name, compression="snappy")
+                    s3.download_file(s3_bucket, s3_key, str(existing_path))
+                    existing_df = pd.read_parquet(str(existing_path))
+
+                    # Merge and remove duplicates based on 'path' field
+                    df = pd.concat([existing_df, df], ignore_index=True)
+
+                    # Remove duplicates, keeping the last occurrence (newest data)
+                    if "path" in df.columns:
+                        df = df.drop_duplicates(subset=["path"], keep="last")
+                        logger.info(
+                            f"Removed duplicates, {len(df)} unique records remain"
+                        )
+
+                    logger.info(f"Merged with existing data for year {year}")
                 except Exception as e:
                     logger.info(f"Creating new parquet file for year {year}: {e}")
+                finally:
+                    # Clean up downloaded file
+                    try:
+                        if existing_path.exists():
+                            existing_path.unlink()
+                    except Exception as cleanup_err:
+                        logger.debug(f"Failed to cleanup temp file: {cleanup_err}")
+
+            except Exception as e:
+                logger.error(f"Error handling temp file for year {year}: {e}")
+
+            # Write to temp parquet file and upload
+            with tempfile.NamedTemporaryFile(
+                suffix=".parquet", delete=False
+            ) as tmp_file:
+                tmp_path = Path(tmp_file.name)
+
+            try:
+                df.to_parquet(str(tmp_path), compression="snappy", index=False)
 
                 # Upload to S3
-                s3.upload_file(tmp_file.name, s3_bucket, s3_key)
-                logger.info(f"Uploaded metadata for year {year} to S3")
+                s3.upload_file(str(tmp_path), s3_bucket, s3_key)
+                logger.info(f"Uploaded {len(df)} records for year {year} to S3")
+            finally:
+                # Clean up temp file
+                try:
+                    if tmp_path.exists():
+                        tmp_path.unlink()
+                except Exception as cleanup_err:
+                    logger.debug(f"Failed to cleanup temp file: {cleanup_err}")
 
     logger.info(
         f"Processed {total_records} records across {len(processed_years)} years"
