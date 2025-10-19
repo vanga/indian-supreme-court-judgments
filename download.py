@@ -1400,6 +1400,13 @@ def generate_parquet_from_local_metadata(local_dir, s3_bucket):
             except Exception as s3_err:
                 logger.error(f"Failed to recover metadata from S3: {s3_err}")
                 continue
+            finally:
+                # Clean up temporary zip file
+                try:
+                    if temp_zip.exists():
+                        temp_zip.unlink()
+                except Exception as cleanup_err:
+                    logger.debug(f"Failed to cleanup temp zip file: {cleanup_err}")
 
         except Exception as e:
             logger.error(f"Error processing metadata for year {year}: {e}")

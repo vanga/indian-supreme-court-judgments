@@ -266,7 +266,6 @@ class SupremeCourtS3Processor:
                     df[col] = df[col].astype("string")
                 except Exception as e:
                     logger.debug(f"Could not convert {col} to string: {e}")
-                    pass
 
         # Upload to S3 directly in the requested format:
         # s3_bucket/metadata/parquet/year=YYYY/metadata.parquet
