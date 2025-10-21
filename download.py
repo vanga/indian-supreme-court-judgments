@@ -4,6 +4,7 @@ import functools
 import json
 import logging
 import re
+import shutil
 import sys
 import tempfile
 import threading
@@ -24,16 +25,14 @@ import lxml.html as LH
 import pandas as pd
 import requests
 import urllib3
-from tqdm import tqdm
 from botocore import UNSIGNED
 from botocore.client import Config
 from bs4 import BeautifulSoup
 from PIL import Image
+from tqdm import tqdm
 
 from captcha_solver import get_text
-from process_metadata import (
-    SupremeCourtS3Processor,
-)
+from process_metadata import SupremeCourtS3Processor
 
 # Configure root logger with colors
 root_logger = logging.getLogger()
@@ -628,8 +627,6 @@ class S3ArchiveManager:
                 has_files = any(f.is_file() for f in year_dir.rglob("*"))
                 if not has_files:
                     logger.info(f"Cleaning up empty year directory: {year_dir}")
-                    import shutil
-
                     shutil.rmtree(year_dir)
 
     def format_file_size(self, size_bytes):
@@ -699,9 +696,9 @@ class Downloader:
 
         # First check for direct PDF button (single language) with role="link"
         button = soup.find("button", {"role": "link"})
-        assert (
-            button and "onclick" in button.attrs
-        ), f"No PDF button found, task: {self.task}"
+        assert button and "onclick" in button.attrs, (
+            f"No PDF button found, task: {self.task}"
+        )
         pdf_info = self.extract_pdf_fragment_from_button(button["onclick"])
         assert pdf_info, f"No PDF info found, task: {self.task}"
 
@@ -1577,7 +1574,7 @@ def sync_s3_fill_gaps(
     logger.info("🚀 Starting 5-year chunk S3 gap-filling process...")
     if timeout_hours:
         logger.info(
-            f"⏰ Timeout set to {timeout_hours} hours ({timeout_seconds/60:.0f} minutes)"
+            f"⏰ Timeout set to {timeout_hours} hours ({timeout_seconds / 60:.0f} minutes)"
         )
     else:
         logger.info("⏰ No timeout - will run until completion")
@@ -1649,11 +1646,11 @@ def sync_s3_fill_gaps(
     # Process ALL remaining chunks in this run
     for chunk_index, (chunk_start, chunk_end) in enumerate(remaining_chunks):
         logger.info("")
-        logger.info(f"{'='*70}")
+        logger.info(f"{'=' * 70}")
         logger.info(
             f"📦 Processing chunk {len(completed_chunks) + chunk_index + 1}/{len(all_five_year_chunks)}: {chunk_start} to {chunk_end}"
         )
-        logger.info(f"{'='*70}")
+        logger.info(f"{'=' * 70}")
         logger.info("")
 
         # Check timeout before starting a new chunk
@@ -1722,7 +1719,7 @@ def sync_s3_fill_gaps(
                         elapsed_time = time.time() - start_time
                         if elapsed_time >= timeout_seconds:
                             logger.warning(
-                                f"⏰ Timeout reached after {elapsed_time/3600:.2f} hours"
+                                f"⏰ Timeout reached after {elapsed_time / 3600:.2f} hours"
                             )
                             # Upload any remaining year data before exiting
                             if current_year is not None:
@@ -1966,6 +1963,9 @@ def generate_parquet_from_local_metadata(local_dir, s3_bucket):
             logger.info(f"No metadata.zip found for year {year}, skipping")
             continue
 
+        # Initialize records list
+        records = []
+
         # Verify it's a valid zip file before processing
         try:
             # Test open the zip file to validate it
@@ -2016,6 +2016,13 @@ def generate_parquet_from_local_metadata(local_dir, s3_bucket):
             except Exception as s3_err:
                 logger.error(f"Failed to recover metadata from S3: {s3_err}")
                 continue
+            finally:
+                # Clean up temporary zip file
+                try:
+                    if temp_zip.exists():
+                        temp_zip.unlink()
+                except Exception as cleanup_err:
+                    logger.debug(f"Failed to cleanup temp zip file: {cleanup_err}")
 
         except Exception as e:
             logger.error(f"Error processing metadata for year {year}: {e}")
@@ -2029,30 +2036,63 @@ def generate_parquet_from_local_metadata(local_dir, s3_bucket):
             # Convert to DataFrame with proper schema
             df = pd.DataFrame(records)
 
-            # Write to temp parquet file
-            with tempfile.NamedTemporaryFile(
-                suffix=".parquet", delete=True
-            ) as tmp_file:
-                df.to_parquet(tmp_file.name, compression="snappy")
+            # Target S3 path for this year
+            s3_key = f"metadata/parquet/year={year}/metadata.parquet"
 
-                # Target S3 path for this year
-                s3_key = f"metadata/parquet/year={year}/metadata.parquet"
+            # Check if existing parquet file exists, and merge if so
+            try:
+                with tempfile.NamedTemporaryFile(
+                    suffix=".parquet", delete=False
+                ) as existing_file:
+                    existing_path = Path(existing_file.name)
 
-                # Check if existing parquet file exists, and merge if so
                 try:
-                    with tempfile.NamedTemporaryFile(
-                        suffix=".parquet", delete=True
-                    ) as existing_file:
-                        s3.download_file(s3_bucket, s3_key, existing_file.name)
-                        existing_df = pd.read_parquet(existing_file.name)
-                        df = pd.concat([existing_df, df], ignore_index=True)
-                        df.to_parquet(tmp_file.name, compression="snappy")
+                    s3.download_file(s3_bucket, s3_key, str(existing_path))
+                    existing_df = pd.read_parquet(str(existing_path))
+
+                    # Merge and remove duplicates based on 'path' field
+                    df = pd.concat([existing_df, df], ignore_index=True)
+
+                    # Remove duplicates, keeping the last occurrence (newest data)
+                    if "path" in df.columns:
+                        df = df.drop_duplicates(subset=["path"], keep="last")
+                        logger.info(
+                            f"Removed duplicates, {len(df)} unique records remain"
+                        )
+
+                    logger.info(f"Merged with existing data for year {year}")
                 except Exception as e:
                     logger.info(f"Creating new parquet file for year {year}: {e}")
+                finally:
+                    # Clean up downloaded file
+                    try:
+                        if existing_path.exists():
+                            existing_path.unlink()
+                    except Exception as cleanup_err:
+                        logger.debug(f"Failed to cleanup temp file: {cleanup_err}")
+
+            except Exception as e:
+                logger.error(f"Error handling temp file for year {year}: {e}")
+
+            # Write to temp parquet file and upload
+            with tempfile.NamedTemporaryFile(
+                suffix=".parquet", delete=False
+            ) as tmp_file:
+                tmp_path = Path(tmp_file.name)
+
+            try:
+                df.to_parquet(str(tmp_path), compression="snappy", index=False)
 
                 # Upload to S3
-                s3.upload_file(tmp_file.name, s3_bucket, s3_key)
-                logger.info(f"Uploaded metadata for year {year} to S3")
+                s3.upload_file(str(tmp_path), s3_bucket, s3_key)
+                logger.info(f"Uploaded {len(df)} records for year {year} to S3")
+            finally:
+                # Clean up temp file
+                try:
+                    if tmp_path.exists():
+                        tmp_path.unlink()
+                except Exception as cleanup_err:
+                    logger.debug(f"Failed to cleanup temp file: {cleanup_err}")
 
     logger.info(
         f"Processed {total_records} records across {len(processed_years)} years"
@@ -2153,6 +2193,12 @@ if __name__ == "__main__":
                 logger.info("No new files downloaded. Skipping parquet conversion.")
         else:
             logger.info("Data is already up to date. Skipping parquet conversion.")
+
+        # Clean up LOCAL_DIR after processing
+        if LOCAL_DIR.exists():
+            logger.info(f"Cleaning up local data directory {LOCAL_DIR}...")
+            shutil.rmtree(LOCAL_DIR, ignore_errors=True)
+            logger.info("✅ Local data directory deleted")
     else:
         run(
             args.start_date,

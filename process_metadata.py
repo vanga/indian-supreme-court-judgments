@@ -5,6 +5,7 @@ import os
 import re
 import tempfile
 import zipfile
+from pathlib import Path
 from typing import Dict, Optional
 
 import boto3
@@ -263,49 +264,70 @@ class SupremeCourtS3Processor:
             if col in df.columns:
                 try:
                     df[col] = df[col].astype("string")
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not convert {col} to string: {e}")
 
-        # Write to temp parquet file
-        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=True) as tmp_file:
-            df.to_parquet(tmp_file.name, compression="snappy")
+        # Upload to S3 directly in the requested format:
+        # s3_bucket/metadata/parquet/year=YYYY/metadata.parquet
+        s3_key = f"metadata/parquet/year={year}/metadata.parquet"
 
-            # Upload to S3 directly in the requested format:
-            # s3_bucket/metadata/parquet/year=YYYY/metadata.parquet
-            s3_key = f"metadata/parquet/year={year}/metadata.parquet"
+        # Check if a file already exists and merge if so
+        try:
+            # If the file exists, we need to merge with it
+            self.s3.head_object(Bucket=self.s3_bucket, Key=s3_key)
 
-            # Check if a file already exists
+            # Download existing file
+            with tempfile.NamedTemporaryFile(
+                suffix=".parquet", delete=False
+            ) as existing_file:
+                existing_path = existing_file.name
+
             try:
-                # If the file exists, we need to merge with it
-                self.s3.head_object(Bucket=self.s3_bucket, Key=s3_key)
+                self.s3.download_file(self.s3_bucket, s3_key, existing_path)
+                existing_df = pd.read_parquet(existing_path)
 
-                # Download existing file
-                with tempfile.NamedTemporaryFile(
-                    suffix=".parquet", delete=True
-                ) as existing_file:
-                    self.s3.download_file(self.s3_bucket, s3_key, existing_file.name)
+                # Merge files
+                combined_df = pd.concat([existing_df, df], ignore_index=True)
 
-                    # Merge files
-                    existing_df = pd.read_parquet(existing_file.name)
-                    combined_df = pd.concat([existing_df, df], ignore_index=True)
+                # Remove duplicates based on 'path' field, keeping the last occurrence (newest)
+                if "path" in combined_df.columns:
+                    combined_df = combined_df.drop_duplicates(
+                        subset=["path"], keep="last"
+                    )
+                    logger.info(
+                        f"Removed duplicates for year {year}, {len(combined_df)} unique records remain"
+                    )
 
-                    # Write merged data back to temp file
-                    combined_df.to_parquet(tmp_file.name, compression="snappy")
-            except:
-                # File doesn't exist, no need to merge
-                pass
+                df = combined_df
+            finally:
+                # Clean up temp file
+                try:
+                    Path(existing_path).unlink()
+                except Exception:
+                    pass
+        except Exception as e:
+            # File doesn't exist or error downloading, no need to merge
+            logger.debug(f"No existing parquet to merge for year {year}: {e}")
+
+        # Write to temp parquet file and upload
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+
+        try:
+            df.to_parquet(tmp_path, compression="snappy", index=False)
 
             # Upload file to S3
+            self.s3.upload_file(tmp_path, self.s3_bucket, s3_key)
+            logger.info(f"Uploaded {len(df)} records for year {year} to S3")
+        finally:
+            # Clean up temp file
             try:
-                self.s3.upload_file(str(tmp_file.name), self.s3_bucket, s3_key)
-                logger.info(f"✓ Successfully uploaded parquet to {s3_key}")
-            except Exception as e:
-                logger.error(
-                    f"Failed to upload {tmp_file.name} to {self.s3_bucket}/{s3_key}: {e}"
-                )
-                raise
+                Path(tmp_path).unlink()
+            except Exception:
+                pass
 
-        return len(records)
+        # Return the actual number of records written (after deduplication)
+        return len(df)
 
     def process_metadata(self, metadata: dict, year=None) -> Optional[dict]:
         """
