@@ -77,7 +77,7 @@ class SupremeCourtS3Processor:
             content = response["Body"].read().decode("utf-8")
             return json.loads(content)
         except Exception as e:
-            print(f"Error reading {s3_key}: {e}")
+            logger.error(f"Error reading {s3_key}: {e}")
             return None
 
     def process_s3_zip(self, s3_key, year):
@@ -120,7 +120,7 @@ class SupremeCourtS3Processor:
                                         record_buffer = []
 
             except Exception as e:
-                print(f"Error processing ZIP file {s3_key}: {e}")
+                logger.error(f"Error processing ZIP file {s3_key}: {e}")
 
         # Write any remaining records
         if record_buffer:
@@ -145,7 +145,7 @@ class SupremeCourtS3Processor:
                 return 1
 
         except Exception as e:
-            print(f"Error processing JSON file {s3_key}: {e}")
+            logger.error(f"Error processing JSON file {s3_key}: {e}")
 
         return 0
 
@@ -296,7 +296,14 @@ class SupremeCourtS3Processor:
                 pass
 
             # Upload file to S3
-            self.s3.upload_file(tmp_file.name, self.s3_bucket, s3_key)
+            try:
+                self.s3.upload_file(str(tmp_file.name), self.s3_bucket, s3_key)
+                logger.info(f"✓ Successfully uploaded parquet to {s3_key}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to upload {tmp_file.name} to {self.s3_bucket}/{s3_key}: {e}"
+                )
+                raise
 
         return len(records)
 
@@ -522,10 +529,10 @@ class SupremeCourtS3Processor:
         sources = list(self.get_all_s3_sources())
 
         if not sources:
-            print(f"No source files found in S3 bucket {self.s3_bucket}!")
+            logger.info(f"No source files found in S3 bucket {self.s3_bucket}!")
             return
 
-        print(f"Found {len(sources)} source files to process from S3")
+        logger.info(f"Found {len(sources)} source files to process from S3")
 
         # Use appropriate number of workers based on CPU count
         if max_workers is None:
@@ -552,7 +559,7 @@ class SupremeCourtS3Processor:
                         self.years_to_process is not None
                         and year not in self.years_to_process
                     ):
-                        print(
+                        logger.info(
                             f"Skipping {s3_key} for year {year} (not in years_to_process)"
                         )
                         continue
@@ -575,16 +582,16 @@ class SupremeCourtS3Processor:
                     record_count = future.result()
                     total_records += record_count
                     processed_years.add(year)
-                    print(
+                    logger.info(
                         f"Completed {os.path.basename(s3_key)} for year {year}: {record_count} records"
                     )
                 except Exception as e:
-                    print(f"Error processing {s3_key} for year {year}: {e}")
+                    logger.error(f"Error processing {s3_key} for year {year}: {e}")
 
-        print(
+        logger.info(
             f"Processed {len(processed_years)} years with {total_records} total records"
         )
-        print(
+        logger.info(
             f"Output files saved to S3 at {self.s3_bucket}/metadata/parquet/year=YYYY/metadata.parquet"
         )
 
