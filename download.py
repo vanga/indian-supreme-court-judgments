@@ -1661,7 +1661,7 @@ def sync_s3_fill_gaps(
 
     # Process ALL remaining chunks in this run
     for chunk_index, (chunk_start, chunk_end) in enumerate(remaining_chunks):
-        logger.info("")
+        print()
         logger.info(f"{'=' * 70}")
         logger.info(
             f"📦 Processing chunk {len(completed_chunks) + chunk_index + 1}/{len(all_five_year_chunks)}: {chunk_start} to {chunk_end}"
@@ -1901,9 +1901,7 @@ def sync_s3_fill_gaps(
                 f"📊 Processing metadata to parquet for years: {sorted(years_in_chunk)}"
             )
             # Give S3 a moment to propagate the newly uploaded files
-            import time as time_module
-
-            time_module.sleep(5)
+            time.sleep(5)
             try:
                 # Convert years to strings to match --sync-s3 behavior (year_dir.name returns strings)
                 generate_parquet_from_metadata(
