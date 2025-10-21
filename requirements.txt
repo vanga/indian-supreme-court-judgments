@@ -11,3 +11,4 @@ requests
 torch
 onnx
 onnxruntime
+pyarrow>=21.0.0

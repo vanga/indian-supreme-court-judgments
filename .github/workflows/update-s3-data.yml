@@ -2,8 +2,8 @@ name: Update S3 Data
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "30 16 * * 5" # Runs at 10:30 PM IST every Friday
+  schedule:
+    - cron: "30 16 * * 5" # Runs at 10:30 PM IST every Friday
 
 env:
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -34,3 +34,15 @@ jobs:
 
       - name: Update S3 data
         run: uv run download.py --sync-s3
+
+      - name: Update dataset sizes
+        run: uv run calculate_dataset_sizes.py
+        
+      - name: Commit and push changes
+        run: |
+          git config user.name "Automated"
+          git config user.email "github-actions@example.com"
+          git add -A
+          timestamp=$(date -u)
+          git commit -m "Update dataset sizes" || exit 0
+          git push
