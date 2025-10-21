@@ -399,10 +399,26 @@ class S3ArchiveManager:
         except self.s3.exceptions.ClientError as e:
             if "404" in str(e):
                 logger.info(f"Archive not found on S3, creating new one: {s3_key}")
+                # Determine source directory and zip file name based on archive type
+                if archive_type == "metadata":
+                    source_dir = f"sc_data/metadata/{year}/"
+                    zip_filename = f"sc-judgments-{year}-metadata.zip"
+                elif archive_type == "english":
+                    source_dir = f"sc_data/english/{year}/"
+                    zip_filename = f"sc-judgments-{year}-english.zip"
+                else:  # regional
+                    source_dir = f"sc_data/regional/{year}/"
+                    zip_filename = f"sc-judgments-{year}-regional.zip"
+
                 self.indexes[(year, archive_type)] = {
-                    "files": [],
+                    "archive_type": archive_type,
+                    "year": int(year),
+                    "created_at": datetime.now(IST).isoformat(),
+                    "tar_file": None,
+                    "source_directory": source_dir,
                     "file_count": 0,
-                    "created_at": datetime.now().isoformat(),
+                    "files": [],
+                    "zip_file": zip_filename,
                 }
             else:
                 raise
