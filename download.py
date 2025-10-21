@@ -3,6 +3,7 @@ import concurrent.futures
 import functools
 import json
 import logging
+import os
 import re
 import shutil
 import sys
@@ -1722,7 +1723,7 @@ def sync_s3_fill_gaps(
                     position=0,
                     file=sys.stderr,
                 )
-                print()
+                logger.info("")
 
                 try:
                     for i, (from_date, to_date) in enumerate(date_range_bar, 1):
@@ -1733,7 +1734,10 @@ def sync_s3_fill_gaps(
 
                         # Check timeout
                         elapsed_time = time.time() - start_time
-                        if elapsed_time >= timeout_seconds:
+                        if (
+                            timeout_seconds is not None
+                            and elapsed_time >= timeout_seconds
+                        ):
                             logger.warning(
                                 f"⏰ Timeout reached after {elapsed_time / 3600:.2f} hours"
                             )
@@ -2058,11 +2062,11 @@ def generate_parquet_from_local_metadata(local_dir, s3_bucket):
                 with tempfile.NamedTemporaryFile(
                     suffix=".parquet", delete=False
                 ) as existing_file:
-                    existing_path = Path(existing_file.name)
+                    existing_path = existing_file.name
 
                 try:
-                    s3.download_file(s3_bucket, s3_key, str(existing_path))
-                    existing_df = pd.read_parquet(str(existing_path))
+                    s3.download_file(s3_bucket, s3_key, existing_path)
+                    existing_df = pd.read_parquet(existing_path)
 
                     # Merge and remove duplicates based on 'path' field
                     df = pd.concat([existing_df, df], ignore_index=True)
@@ -2080,8 +2084,8 @@ def generate_parquet_from_local_metadata(local_dir, s3_bucket):
                 finally:
                     # Clean up downloaded file
                     try:
-                        if existing_path.exists():
-                            existing_path.unlink()
+                        if os.path.exists(existing_path):
+                            os.unlink(existing_path)
                     except Exception as cleanup_err:
                         logger.debug(f"Failed to cleanup temp file: {cleanup_err}")
 
@@ -2092,19 +2096,19 @@ def generate_parquet_from_local_metadata(local_dir, s3_bucket):
             with tempfile.NamedTemporaryFile(
                 suffix=".parquet", delete=False
             ) as tmp_file:
-                tmp_path = Path(tmp_file.name)
+                tmp_path = tmp_file.name
 
             try:
-                df.to_parquet(str(tmp_path), compression="snappy", index=False)
+                df.to_parquet(tmp_path, compression="snappy", index=False)
 
                 # Upload to S3
-                s3.upload_file(str(tmp_path), s3_bucket, s3_key)
+                s3.upload_file(tmp_path, s3_bucket, s3_key)
                 logger.info(f"Uploaded {len(df)} records for year {year} to S3")
             finally:
                 # Clean up temp file
                 try:
-                    if tmp_path.exists():
-                        tmp_path.unlink()
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
                 except Exception as cleanup_err:
                     logger.debug(f"Failed to cleanup temp file: {cleanup_err}")
 

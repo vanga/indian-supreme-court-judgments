@@ -5,7 +5,6 @@ import os
 import re
 import tempfile
 import zipfile
-from pathlib import Path
 from typing import Dict, Optional
 
 import boto3
@@ -302,7 +301,8 @@ class SupremeCourtS3Processor:
             finally:
                 # Clean up temp file
                 try:
-                    Path(existing_path).unlink()
+                    if os.path.exists(existing_path):
+                        os.unlink(existing_path)
                 except Exception:
                     pass
         except Exception as e:
@@ -322,7 +322,8 @@ class SupremeCourtS3Processor:
         finally:
             # Clean up temp file
             try:
-                Path(tmp_path).unlink()
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
             except Exception:
                 pass
 
