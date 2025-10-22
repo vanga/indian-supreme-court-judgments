@@ -208,3 +208,5 @@ cython_debug/
 # Temporary Directory for S3 Updater
 local_sc_judgments_data/
 index_cache/
+
+sc_track.json

@@ -703,9 +703,7 @@ class SupremeCourtS3Processor:
 # Main execution for when running as a script
 def main():
     # S3 bucket information
-    s3_bucket = (
-        "indian-supreme-court-judgments"  # Replace with your S3 bucket name
-    )
+    s3_bucket = "indian-supreme-court-judgments"  # Replace with your S3 bucket name
     s3_prefix = ""  # Optional prefix (folder) in the bucket
 
     processor = SupremeCourtS3Processor(
