@@ -72,9 +72,9 @@ Columns/fields in the metadata.parquet are
 * Since the S3 bucket is public, files can also be downloaded using links like `https://indian-supreme-court-judgments.s3.amazonaws.com/data/zip/year=2023/english.zip`
 
 
-See the AWS [tutorials](../tutorials/README.md) for more detailed examples of:
+See the AWS [tutorials](/opendata/tutorials/README.md) for more detailed examples of:
 * Downloading and extracting judgment data
-* Querying metadata using AWS Athena [here](../tutorials/ATHENA.md)
+* Querying metadata using AWS Athena [here](/opendata/tutorials/ATHENA.md)
 
 #### Local development
 

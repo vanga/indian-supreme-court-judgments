@@ -36,13 +36,13 @@ CREATE EXTERNAL TABLE supreme_court_cases.judgments (
 )
 PARTITIONED BY (year STRING)
 STORED AS PARQUET
-LOCATION 's3://indian-supreme-court-judgments/metadata/'
+LOCATION 's3://indian-supreme-court-judgments/metadata/parquet/'
 TBLPROPERTIES (
   'has_encrypted_data'='false',
   'projection.enabled'='true',
   'projection.year.type'='integer',
   'projection.year.range'='1950,2025',
-  'storage.location.template'='s3://indian-supreme-court-judgments/metadata/year=${year}/metadata.parquet'
+  'storage.location.template'='s3://indian-supreme-court-judgments/metadata/parquet/year=${year}/'
 )
 ```
 
