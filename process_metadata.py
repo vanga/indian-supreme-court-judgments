@@ -303,8 +303,8 @@ class SupremeCourtS3Processor:
                 try:
                     if os.path.exists(existing_path):
                         os.unlink(existing_path)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not delete temp file {existing_path}: {e}")
         except Exception as e:
             # File doesn't exist or error downloading, no need to merge
             logger.debug(f"No existing parquet to merge for year {year}: {e}")

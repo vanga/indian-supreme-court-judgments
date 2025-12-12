@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import re
-import sys
 import tempfile
 import threading
 import time
@@ -28,7 +27,6 @@ from botocore import UNSIGNED
 from botocore.client import Config
 from bs4 import BeautifulSoup
 from PIL import Image
-from tqdm import tqdm
 
 from archive_manager import S3ArchiveManager
 from captcha_solver import get_text
@@ -231,6 +229,15 @@ def extract_year_from_path(path):
     raise ValueError(f"Could not extract year from path: {path}")
 
 
+def get_archive_type(lang_code):
+    """Determine archive type based on language code.
+
+    Returns 'english' for empty string or 'EN' (case-insensitive),
+    otherwise returns 'regional'.
+    """
+    return "english" if (lang_code == "" or lang_code.upper() == "EN") else "regional"
+
+
 class SCDateTask:
     """A task representing a date range to process for Supreme Court"""
 
@@ -421,12 +428,7 @@ class Downloader:
         pdfs_downloaded = 0
         for lang_code in language_codes:
             pdf_filename = self.get_pdf_filename(pdf_info["path"], lang_code)
-            # Classify as English if lang_code is empty string or "EN" (case-insensitive)
-            archive_type = (
-                "english"
-                if (lang_code == "" or lang_code.upper() == "EN")
-                else "regional"
-            )
+            archive_type = get_archive_type(lang_code)
 
             # Check if PDF already exists
             if self.archive_manager.file_exists(year, archive_type, pdf_filename):
@@ -616,7 +618,8 @@ class Downloader:
                 # if response is json
                 try:
                     response_dict = response.json()
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Response is not JSON: {e}")
                     response_dict = {}
 
                 self.update_session_id(response)
@@ -1011,8 +1014,9 @@ def sync_latest_metadata_zip(force_refresh=True):
         s3.head_object(Bucket=S3_BUCKET, Key=current_year_key)
         latest_zip_key = current_year_key
         logger.info(f"Found current year ({current_year}) metadata")
-    except Exception:
+    except Exception as e:
         # Fall back to finding the latest available year
+        logger.debug(f"Current year metadata not available: {e}")
         logger.info("Current year metadata not found, finding latest available...")
         zips = []
 
@@ -1077,8 +1081,8 @@ def extract_decision_date_from_json(json_obj):
         try:
             # print(datetime.strptime(m.group(1), "%d-%m-%Y"))
             return datetime.strptime(m.group(1), "%d-%m-%Y")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not parse date '{m.group(1)}': {e}")
     return None
 
 
@@ -1096,7 +1100,8 @@ def find_latest_decision_date_in_zip(zip_path):
                         latest_date is None or decision_date > latest_date
                     ):
                         latest_date = decision_date
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Could not parse JSON from {name}: {e}")
                     continue
     if latest_date:
         logger.info(f"Latest decision date in metadata zip: {latest_date.date()}")
@@ -1183,436 +1188,6 @@ def generate_parquet_from_metadata(s3_bucket, years_to_process=None):
         logger.warning("No metadata records were processed to parquet format")
 
     return total_records > 0
-
-
-def get_fill_progress_file():
-    """Get path to the fill progress tracking file"""
-    return Path("./sc_fill_progress.json")
-
-
-def save_fill_progress(start_date, end_date, current_date, completed_ranges):
-    """Save progress for gap filling process"""
-    progress_data = {
-        "start_date": start_date,
-        "end_date": end_date,
-        "current_date": current_date,
-        "completed_ranges": completed_ranges,
-        "last_updated": datetime.now().isoformat(),
-    }
-
-    with open(get_fill_progress_file(), "w") as f:
-        json.dump(progress_data, f, indent=2)
-
-    logger.info(f"Progress saved: currently at {current_date}")
-
-
-def load_fill_progress():
-    """Load existing progress for gap filling process"""
-    progress_file = get_fill_progress_file()
-    if not progress_file.exists():
-        return None
-
-    try:
-        with open(progress_file, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.warning(f"Could not load progress file: {e}")
-        return None
-
-
-def clear_fill_progress():
-    """Clear progress file when process completes"""
-    progress_file = get_fill_progress_file()
-    if progress_file.exists():
-        progress_file.unlink()
-        logger.info("Progress file cleared - gap filling completed")
-
-
-def sync_s3_fill_gaps(
-    s3_bucket,
-    start_date=None,
-    end_date=None,
-    day_step=30,
-    max_workers=5,
-    timeout_hours=None,
-):
-    """
-    Fill gaps in S3 data by processing ONE 5-year chunk per run.
-    Uses immediate upload after each year to prevent data loss.
-    Run this repeatedly - it will automatically pick up the next 5-year chunk each time.
-
-    Args:
-        s3_bucket: S3 bucket name
-        start_date: Start date for gap analysis (defaults to START_DATE = 1950-01-01)
-        end_date: End date for gap analysis (defaults to current date)
-        day_step: Number of days per download chunk
-        max_workers: Number of parallel workers
-        timeout_hours: Maximum hours to run before graceful exit (default None = no timeout)
-    """
-    start_time = time.time()
-    timeout_seconds = timeout_hours * 3600 if timeout_hours else None
-
-    logger.info("🚀 Starting 5-year chunk S3 gap-filling process...")
-    if timeout_hours:
-        logger.info(
-            f"⏰ Timeout set to {timeout_hours} hours ({timeout_seconds / 60:.0f} minutes)"
-        )
-    else:
-        logger.info("⏰ No timeout - will run until completion")
-
-    # Check for existing progress
-    existing_progress = load_fill_progress()
-
-    # Determine the overall start and end dates
-    overall_start = start_date or START_DATE
-    overall_end = end_date or datetime.now().strftime("%Y-%m-%d")
-
-    if existing_progress:
-        logger.info("📋 Found existing progress from previous run:")
-        logger.info(
-            f"  Overall range: {existing_progress['start_date']} to {existing_progress['end_date']}"
-        )
-        logger.info(
-            f"  Last completed chunk: {existing_progress.get('last_chunk_end', 'None')}"
-        )
-        logger.info(
-            f"  Completed chunks: {len(existing_progress.get('completed_chunks', []))}"
-        )
-
-        # Use existing overall range
-        overall_start = existing_progress["start_date"]
-        overall_end = existing_progress["end_date"]
-        completed_chunks = [
-            tuple(c) for c in existing_progress.get("completed_chunks", [])
-        ]
-    else:
-        completed_chunks = []
-
-    logger.info(f"📅 Overall processing range: {overall_start} to {overall_end}")
-
-    # Generate 5-year chunks
-    start_dt = datetime.strptime(overall_start, "%Y-%m-%d")
-    end_dt = datetime.strptime(overall_end, "%Y-%m-%d")
-
-    all_five_year_chunks = []
-    current_chunk_start = start_dt
-
-    while current_chunk_start <= end_dt:
-        # Calculate 5-year chunk end
-        chunk_end = min(
-            datetime(current_chunk_start.year + 5, 1, 1) - timedelta(days=1), end_dt
-        )
-
-        chunk_tuple = (
-            current_chunk_start.strftime("%Y-%m-%d"),
-            chunk_end.strftime("%Y-%m-%d"),
-        )
-        all_five_year_chunks.append(chunk_tuple)
-
-        # Move to next chunk
-        current_chunk_start = datetime(current_chunk_start.year + 5, 1, 1)
-
-    # Filter out completed chunks
-    remaining_chunks = [c for c in all_five_year_chunks if c not in completed_chunks]
-
-    logger.info(f"📊 Total 5-year chunks: {len(all_five_year_chunks)}")
-    logger.info(f"✅ Already completed: {len(completed_chunks)}")
-    logger.info(f"⏳ Remaining chunks: {len(remaining_chunks)}")
-
-    if not remaining_chunks:
-        logger.info("🎉 All chunks completed! Clearing progress file.")
-        clear_fill_progress()
-        return
-
-    # Process ALL remaining chunks in this run
-    for chunk_index, (chunk_start, chunk_end) in enumerate(remaining_chunks):
-        print()
-        logger.info(f"{'=' * 70}")
-        logger.info(
-            f"📦 Processing chunk {len(completed_chunks) + chunk_index + 1}/{len(all_five_year_chunks)}: {chunk_start} to {chunk_end}"
-        )
-        logger.info(f"{'=' * 70}")
-        logger.info("")
-
-        # Check timeout before starting a new chunk
-        if timeout_seconds and time.time() - start_time >= timeout_seconds:
-            logger.warning(
-                f"⏰ Timeout reached before starting chunk {chunk_start} to {chunk_end}"
-            )
-            logger.info("💾 Progress saved. Run again to continue from this chunk.")
-            return
-
-        # Check if we're resuming an incomplete chunk
-        completed_years_in_chunk = set()
-        if existing_progress and existing_progress.get("current_chunk") == [
-            chunk_start,
-            chunk_end,
-        ]:
-            completed_years_in_chunk = set(
-                existing_progress.get("completed_years_in_current_chunk", [])
-            )
-            if completed_years_in_chunk:
-                logger.info(
-                    f"📋 Resuming chunk - already uploaded years: {sorted(completed_years_in_chunk)}"
-                )
-
-        # Track years processed in this chunk
-        years_in_chunk = (
-            completed_years_in_chunk.copy()
-        )  # Start with already completed years
-        current_year = None
-        chunk_changes = {}
-        upload_metadata = {}
-
-        # Use immediate upload mode
-        with S3ArchiveManager(
-            s3_bucket, S3_PREFIX, LOCAL_DIR, immediate_upload=True
-        ) as archive_manager:
-            try:
-                # Generate date ranges for this chunk only
-                chunk_date_ranges = list(
-                    get_date_ranges_to_process(chunk_start, chunk_end, day_step)
-                )
-                total_ranges = len(chunk_date_ranges)
-                logger.info(f"📝 Processing {total_ranges} date ranges in this chunk")
-
-                date_range_bar = tqdm(
-                    chunk_date_ranges,
-                    desc=f"\x1b[36m📆 Ranges {chunk_start}→{chunk_end}\x1b[0m",  # Cyan text
-                    unit="range",
-                    leave=True,
-                    colour="cyan",  # Cyan bar
-                    bar_format="\x1b[36m{l_bar}\x1b[0m{bar}\x1b[36m{r_bar}\x1b[0m",  # Cyan text, keep bar colored
-                    ncols=100,
-                    position=0,
-                    file=sys.stderr,
-                )
-                logger.info("")
-
-                try:
-                    for i, (from_date, to_date) in enumerate(date_range_bar, 1):
-                        # Skip dates from already-completed years
-                        date_year = datetime.strptime(from_date, "%Y-%m-%d").year
-                        if date_year in completed_years_in_chunk:
-                            continue  # Skip this date range entirely
-
-                        # Check timeout
-                        elapsed_time = time.time() - start_time
-                        if (
-                            timeout_seconds is not None
-                            and elapsed_time >= timeout_seconds
-                        ):
-                            logger.warning(
-                                f"⏰ Timeout reached after {elapsed_time / 3600:.2f} hours"
-                            )
-                            # Upload any remaining year data before exiting
-                            if current_year is not None:
-                                logger.info(
-                                    f"\x1b[36m📤 Uploading final year {current_year} before timeout...\x1b[0m"
-                                )
-                                archive_manager.upload_year_archives(current_year)
-                                years_in_chunk.add(current_year)
-
-                            # Save progress with completed years so far
-                            if years_in_chunk:
-                                logger.info(
-                                    f"💾 Saving progress: uploaded years {sorted(years_in_chunk)}"
-                                )
-                                progress_data = {
-                                    "start_date": overall_start,
-                                    "end_date": overall_end,
-                                    "current_chunk": (chunk_start, chunk_end),
-                                    "completed_years_in_current_chunk": sorted(
-                                        list(years_in_chunk)
-                                    ),
-                                    "completed_chunks": completed_chunks,
-                                    "last_updated": datetime.now().isoformat(),
-                                }
-                                with open(get_fill_progress_file(), "w") as f:
-                                    json.dump(progress_data, f, indent=2)
-
-                            logger.warning(
-                                "⚠️  Did not complete the full chunk - will resume from next year on next run"
-                            )
-                            return  # Exit without marking chunk as complete
-                        logger.info("")
-                        logger.debug(
-                            f"  Range {i}/{total_ranges}: {from_date} to {to_date}"
-                        )
-
-                        # Use the existing run() function which already has parallel processing built-in
-                        run(
-                            start_date=from_date,
-                            end_date=to_date,
-                            day_step=1,
-                            max_workers=max_workers,
-                            package_on_startup=False,
-                            archive_manager=archive_manager,
-                        )
-
-                        # Track year for uploads after processing the date range
-                        date_year = datetime.strptime(from_date, "%Y-%m-%d").year
-                        if current_year is not None and date_year != current_year:
-                            # Year changed - upload previous year's data (if not already uploaded)
-                            if current_year not in completed_years_in_chunk:
-                                logger.info(
-                                    f"\x1b[36m📤 Year changed from {current_year} to {date_year}, uploading {current_year} data...\x1b[0m"
-                                )
-                                archive_manager.upload_year_archives(current_year)
-                                years_in_chunk.add(current_year)
-
-                                # Save progress immediately after uploading a year
-                                logger.info(
-                                    f"💾 Saving progress: completed year {current_year}"
-                                )
-                                progress_data = {
-                                    "start_date": overall_start,
-                                    "end_date": overall_end,
-                                    "current_chunk": (chunk_start, chunk_end),
-                                    "completed_years_in_current_chunk": sorted(
-                                        list(years_in_chunk)
-                                    ),
-                                    "completed_chunks": completed_chunks,
-                                    "last_updated": datetime.now().isoformat(),
-                                }
-                                with open(get_fill_progress_file(), "w") as f:
-                                    json.dump(progress_data, f, indent=2)
-                            else:
-                                logger.info(
-                                    f"⏭️  Skipping upload for {current_year} (already uploaded)"
-                                )
-
-                        current_year = date_year
-                finally:
-                    date_range_bar.close()
-
-                # Upload final year's data (if not already uploaded)
-                if (
-                    current_year is not None
-                    and current_year not in completed_years_in_chunk
-                ):
-                    logger.info(
-                        f"\x1b[36m📤 Uploading final year {current_year} data...\x1b[0m"
-                    )
-                    archive_manager.upload_year_archives(current_year)
-                    years_in_chunk.add(current_year)
-
-                logger.info("")
-                logger.info(f"✅ Completed chunk: {chunk_start} to {chunk_end}")
-
-                # Mark this chunk as completed
-                completed_chunks.append((chunk_start, chunk_end))
-
-                # Save progress
-                progress_data = {
-                    "start_date": overall_start,
-                    "end_date": overall_end,
-                    "last_chunk_end": chunk_end,
-                    "completed_chunks": completed_chunks,
-                    "last_updated": datetime.now().isoformat(),
-                }
-
-                with open(get_fill_progress_file(), "w") as f:
-                    json.dump(progress_data, f, indent=2)
-
-                logger.info("💾 Progress saved")
-
-            except KeyboardInterrupt:
-                logger.warning("")
-                logger.warning("⚠️  Process interrupted by user (Ctrl+C)")
-                logger.warning(
-                    "⚠️  Chunk was NOT fully completed - will retry from chunk start next run"
-                )
-                return
-            except Exception as e:
-                logger.error(f"❌ Error processing chunk: {e}")
-                logger.error(
-                    "⚠️  Chunk was NOT completed - will retry from chunk start next run"
-                )
-                traceback.print_exc()
-                return
-
-            chunk_changes = archive_manager.get_all_changes()
-            upload_metadata = archive_manager.get_upload_metadata()
-
-        # Summarize chunk changes outside the context manager once uploads are done
-        if chunk_changes:
-            logger.info("")
-            logger.info("🆕 Change summary for this chunk:")
-            for year in sorted(chunk_changes.keys(), key=int):
-                logger.info(f"  📁 Year {year}:")
-                for archive_type, files in chunk_changes[year].items():
-                    logger.info(f"    • {archive_type}: {len(files)} file(s)")
-                    preview = files[:CHANGE_LOG_PREVIEW_LIMIT]
-                    for filename in preview:
-                        logger.info(f"       - {filename}")
-                    if len(files) > CHANGE_LOG_PREVIEW_LIMIT:
-                        logger.info(
-                            f"       … plus {len(files) - CHANGE_LOG_PREVIEW_LIMIT} more (see chunk_changes_summary.json)"
-                        )
-        else:
-            logger.info("ℹ️  No new files were added in this chunk.")
-
-        summary_payload = {
-            "chunk": {"start": chunk_start, "end": chunk_end},
-            "generated_at": datetime.now().isoformat(),
-            "years": {str(year): meta for year, meta in upload_metadata.items()},
-            "files": chunk_changes,
-        }
-        summary_path = Path("./chunk_changes_summary.json")
-        with open(summary_path, "w") as summary_file:
-            json.dump(summary_payload, summary_file, indent=2)
-        logger.info(f"📝 Detailed change summary written to {summary_path.resolve()}")
-
-        # Process metadata to parquet for the years in this chunk
-        if years_in_chunk:
-            logger.info("")
-            logger.info(
-                f"📊 Processing metadata to parquet for years: {sorted(years_in_chunk)}"
-            )
-            # Give S3 a moment to propagate the newly uploaded files
-            time.sleep(5)
-            try:
-                # Convert years to strings to match --sync-s3 behavior (year_dir.name returns strings)
-                generate_parquet_from_metadata(
-                    s3_bucket, [str(y) for y in years_in_chunk]
-                )
-            except Exception as e:
-                logger.warning(f"⚠️  Parquet generation failed: {e}")
-
-            # Check timeout after completing a chunk
-            if timeout_seconds and time.time() - start_time >= timeout_seconds:
-                logger.warning(
-                    f"⏰ Timeout reached after completing chunk {chunk_start} to {chunk_end}"
-                )
-                logger.info("💾 Progress saved. Run again to continue from next chunk.")
-                remaining = len(all_five_year_chunks) - len(completed_chunks)
-                logger.info("")
-                logger.info("📌 " + "=" * 66)
-                logger.info(f"📌 Chunk completed! {remaining} chunks remaining")
-                logger.info("📌 Run the same command again to continue processing")
-                logger.info("📌 " + "=" * 66)
-                return
-
-            # Continue to next chunk in the loop
-
-    # All chunks completed (loop finished naturally)
-    logger.info("")
-    logger.info("🎉 " + "=" * 66)
-    logger.info("🎉 ALL CHUNKS COMPLETED! Gap-filling process finished successfully!")
-    logger.info("🎉 " + "=" * 66)
-    clear_fill_progress()
-
-
-def find_missing_date_ranges(s3_bucket, start_date=None, end_date=None):
-    """
-    DEPRECATED: This function is no longer used.
-    The new approach downloads everything and lets deduplication handle existing files.
-    """
-    logger.warning(
-        "find_missing_date_ranges is deprecated. Use sync_s3_fill_gaps directly."
-    )
-    return []
 
 
 def generate_parquet_from_local_metadata(local_dir, s3_bucket):

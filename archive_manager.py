@@ -58,56 +58,63 @@ class S3ArchiveManager:
             self.cleanup_empty_year_directories()
 
     def get_archive(self, year, archive_type):
-        """Get or create a ZIP archive for a specific year and type"""
-        # New naming convention for archives
-        archive_name = f"{archive_type}.zip"
-        index_name = f"{archive_type}.index.json"
+        """Get or create a ZIP archive for a specific year and type.
 
-        if (year, archive_type) in self.archives:
-            return self.archives[(year, archive_type)]
+        Note: This method acquires the lock to ensure thread-safety when
+        multiple threads request the same archive simultaneously.
+        """
+        with self.lock:
+            # New naming convention for archives
+            archive_name = f"{archive_type}.zip"
+            index_name = f"{archive_type}.index.json"
 
-        # Create year directory structure if it doesn't exist
-        year_dir = self.local_dir / str(year)
-        year_dir.mkdir(parents=True, exist_ok=True)
+            if (year, archive_type) in self.archives:
+                return self.archives[(year, archive_type)]
 
-        local_path = year_dir / archive_name
+            # Create year directory structure if it doesn't exist
+            year_dir = self.local_dir / str(year)
+            year_dir.mkdir(parents=True, exist_ok=True)
 
-        # Determine the correct S3 prefix based on archive type
-        if archive_type == "metadata":
-            s3_dir = f"metadata/zip/year={year}/"
-        else:
-            s3_dir = f"data/zip/year={year}/"
+            local_path = year_dir / archive_name
 
-        s3_key = f"{s3_dir}{archive_name}"
-        index_s3_key = f"{s3_dir}{index_name}"
-
-        try:
-            self.s3.head_object(Bucket=self.s3_bucket, Key=s3_key)
-            logger.info(f"Downloading existing archive: {s3_key}")
-            self.s3.download_file(self.s3_bucket, s3_key, str(local_path))
-
-            # Download index
-            index_local_path = year_dir / index_name
-            self.s3.download_file(self.s3_bucket, index_s3_key, str(index_local_path))
-            with open(index_local_path, "r") as f:
-                self.indexes[(year, archive_type)] = json.load(f)
-
-        except self.s3.exceptions.ClientError as e:
-            if "404" in str(e):
-                logger.info(f"Archive not found on S3, creating new one: {s3_key}")
-                self.indexes[(year, archive_type)] = {
-                    "year": year,
-                    "archive_type": archive_type,
-                    "files": [],
-                    "file_count": 0,
-                    "created_at": datetime.now().isoformat(),
-                }
+            # Determine the correct S3 prefix based on archive type
+            if archive_type == "metadata":
+                s3_dir = f"metadata/zip/year={year}/"
             else:
-                raise
+                s3_dir = f"data/zip/year={year}/"
 
-        archive = zipfile.ZipFile(local_path, "a", zipfile.ZIP_DEFLATED)
-        self.archives[(year, archive_type)] = archive
-        return archive
+            s3_key = f"{s3_dir}{archive_name}"
+            index_s3_key = f"{s3_dir}{index_name}"
+
+            try:
+                self.s3.head_object(Bucket=self.s3_bucket, Key=s3_key)
+                logger.info(f"Downloading existing archive: {s3_key}")
+                self.s3.download_file(self.s3_bucket, s3_key, str(local_path))
+
+                # Download index
+                index_local_path = year_dir / index_name
+                self.s3.download_file(
+                    self.s3_bucket, index_s3_key, str(index_local_path)
+                )
+                with open(index_local_path, "r") as f:
+                    self.indexes[(year, archive_type)] = json.load(f)
+
+            except self.s3.exceptions.ClientError as e:
+                if "404" in str(e):
+                    logger.info(f"Archive not found on S3, creating new one: {s3_key}")
+                    self.indexes[(year, archive_type)] = {
+                        "year": year,
+                        "archive_type": archive_type,
+                        "files": [],
+                        "file_count": 0,
+                        "created_at": datetime.now().isoformat(),
+                    }
+                else:
+                    raise
+
+            archive = zipfile.ZipFile(local_path, "a", zipfile.ZIP_DEFLATED)
+            self.archives[(year, archive_type)] = archive
+            return archive
 
     def add_to_archive(self, year, archive_type, filename, content):
         """Add a file to an archive"""
@@ -181,7 +188,10 @@ class S3ArchiveManager:
                             zip_size_bytes
                         )
                     else:
-                        zip_size_bytes = None
+                        logger.warning(
+                            f"Archive file {local_path} does not exist after closing. Skipping upload for year {year}."
+                        )
+                        continue
 
                     with open(index_local_path, "w") as f:
                         json.dump(index_data, f, indent=2)

@@ -17,6 +17,7 @@ from archive_manager import S3ArchiveManager
 logger = logging.getLogger(__name__)
 
 START_DATE = "1950-01-01"
+CHANGE_LOG_PREVIEW_LIMIT = 20  # Max number of files to show in log preview
 
 
 def get_fill_progress_file():
@@ -408,8 +409,7 @@ def sync_s3_fill_gaps(
                 logger.info(f"  📁 Year {year}:")
                 for archive_type, files in chunk_changes[year].items():
                     logger.info(f"    • {archive_type}: {len(files)} file(s)")
-                    # Show preview of files
-                    CHANGE_LOG_PREVIEW_LIMIT = 20
+                    # Show preview of files (limited by CHANGE_LOG_PREVIEW_LIMIT)
                     preview = files[:CHANGE_LOG_PREVIEW_LIMIT]
                     for filename in preview:
                         logger.info(f"       - {filename}")
