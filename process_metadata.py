@@ -324,8 +324,8 @@ class SupremeCourtS3Processor:
             try:
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not delete temp file {tmp_path}: {e}")
 
         # Return the actual number of records written (after deduplication)
         return len(df)
