@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 # Indian Standard Time timezone
 IST = timezone(timedelta(hours=5, minutes=30))
 
-# Maximum archive size before creating a new part (5GB)
-MAX_ARCHIVE_SIZE = 5 * 1024 * 1024 * 1024  # 5GB in bytes
+# Maximum size for each archive part (1GB for easier management)
+MAX_ARCHIVE_SIZE = 1 * 1024 * 1024 * 1024  # 1GB in bytes
 
 
 def format_size(size_bytes: int) -> str:
@@ -222,29 +222,36 @@ class S3ArchiveManager:
         # Track parts that need to be uploaded
         self.pending_parts: Dict[tuple, List[dict]] = defaultdict(list)
 
+        # Track total number of parts created for each (year, archive_type) in this session
+        self.parts_created_count: Dict[tuple, int] = defaultdict(int)
+
     def __enter__(self):
         self.local_dir.mkdir(parents=True, exist_ok=True)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        # Only upload on exit if not in immediate_upload mode
-        if not self.immediate_upload:
-            self.upload_archives()
+        # Upload any remaining parts
+        if self.immediate_upload:
+            # Finalize and upload any currently open archives
+            for key in list(self.archives.keys()):
+                year, archive_type = key
+                logger.info(
+                    f"Finalizing remaining archive: {archive_type} for year {year}"
+                )
+                self._finalize_current_part(year, archive_type)
         else:
-            # Just close archives without uploading
-            for archive in self.archives.values():
-                try:
-                    archive.close()
-                except Exception:
-                    pass
-            self.cleanup_empty_year_directories()
+            # Batch upload mode
+            self.upload_archives()
+
+        self.cleanup_empty_year_directories()
 
     def _get_s3_dir(self, year: int, archive_type: str) -> str:
         """Get S3 directory path for an archive type"""
         if archive_type == "metadata":
             return f"metadata/zip/year={year}/"
         else:
-            return f"data/zip/year={year}/"
+            # Separate english and regional into their own subfolders
+            return f"data/zip/year={year}/{archive_type}/"
 
     def _get_archive_extension(self, archive_type: str) -> str:
         """Get file extension for archive type"""
@@ -375,11 +382,21 @@ class S3ArchiveManager:
 
         ext = self._get_archive_extension(archive_type)
 
-        # All parts use format: {archive_type}-part-{num}-{timestamp}{ext}
+        # First part: {archive_type}{ext}, subsequent parts: part-{ist-timestamp}{ext}
+        # Use the session parts count, not the index length (which isn't updated until upload)
         index = self.indexes.get(key, IndexFileV2())
-        part_num = len(index.parts) + 1
-        timestamp = generate_part_name(utc_now_iso())
-        archive_name = f"{archive_type}-part-{part_num}-{timestamp}{ext}"
+        total_parts = len(index.parts) + self.parts_created_count.get(key, 0)
+
+        if total_parts == 0:
+            # First part uses normal name
+            archive_name = f"{archive_type}{ext}"
+        else:
+            # Subsequent parts use part-{ist-timestamp} format
+            now_iso = utc_now_iso()
+            ts = datetime.fromisoformat(now_iso.replace("Z", "+00:00")).strftime(
+                "%Y%m%dT%H%M%S"
+            )
+            archive_name = f"part-{ts}{ext}"
 
         local_path = year_dir / archive_name
 
@@ -389,11 +406,14 @@ class S3ArchiveManager:
         self.current_part_files[key] = []
         self.current_part_size[key] = 0
 
+        # Increment the parts created count for this session
+        self.parts_created_count[key] += 1
+
         logger.info(f"Created new archive part: {local_path}")
         return archive
 
     def _finalize_current_part(self, year: int, archive_type: str):
-        """Finalize the current archive part and prepare for a new one"""
+        """Finalize the current archive part and upload immediately if in immediate_upload mode"""
         key = (year, archive_type)
 
         if key not in self.archives:
@@ -406,7 +426,7 @@ class S3ArchiveManager:
         if not local_path or not local_path.exists():
             return
 
-        # Record this part for later upload
+        # Record this part info
         part_size = local_path.stat().st_size
         part_info = {
             "name": local_path.name,
@@ -416,13 +436,78 @@ class S3ArchiveManager:
             "size_human": format_size(part_size),
             "local_path": str(local_path),
         }
-        self.pending_parts[key].append(part_info)
+
+        # If immediate upload is enabled, upload this part now
+        if self.immediate_upload:
+            logger.info(f"Immediately uploading finalized part: {local_path.name}")
+            self._upload_single_part(year, archive_type, part_info)
+        else:
+            # Store for batch upload later
+            self.pending_parts[key].append(part_info)
 
         # Clear current tracking
         del self.archives[key]
         del self.archive_paths[key]
         self.current_part_files[key] = []
         self.current_part_size[key] = 0
+
+    def _upload_single_part(self, year: int, archive_type: str, part_info: dict):
+        """Upload a single part to S3 and update the index"""
+        key = (year, archive_type)
+        s3_dir = self._get_s3_dir(year, archive_type)
+        local_path = Path(part_info["local_path"])
+
+        if not local_path.exists():
+            logger.error(f"Part file not found: {local_path}")
+            return
+
+        part_name = part_info["name"]
+        s3_key = f"{s3_dir}{part_name}"
+
+        # Upload archive part
+        logger.info(
+            f"\x1b[36mUploading {part_name} ({part_info['size_human']}) for year {year}...\x1b[0m"
+        )
+        self.s3.upload_file(str(local_path), self.s3_bucket, s3_key)
+        logger.info(f"\x1b[32m✓ Uploaded {part_name}\x1b[0m")
+
+        # Get or create index
+        if key not in self.indexes:
+            self.indexes[key] = self._load_index_from_s3(year, archive_type)
+
+        index = self.indexes[key]
+
+        # Create IndexPart and add to index
+        new_part = IndexPart(
+            name=part_name,
+            files=part_info["files"],
+            file_count=part_info["file_count"],
+            size=part_info["size"],
+            size_human=part_info["size_human"],
+            created_at=utc_now_iso(),
+        )
+        index.add_part(new_part)
+
+        # Upload updated index
+        self._upload_index(year, archive_type, index)
+        logger.info(f"\x1b[32m✓ Updated index for {archive_type}\x1b[0m")
+
+        # Track upload metadata
+        self.year_upload_metadata[year][archive_type] = {
+            "total_size_bytes": index.total_size,
+            "total_size_human": index.total_size_human,
+            "parts_count": len(index.parts),
+            "files_added": list(
+                self.new_files_added.get(year, {}).get(archive_type, [])
+            ),
+        }
+
+        # Delete local file after successful upload to save space
+        try:
+            local_path.unlink()
+            logger.info(f"Cleaned up local part: {local_path.name}")
+        except Exception as e:
+            logger.warning(f"Could not delete local part {local_path}: {e}")
 
     def add_to_archive(self, year, archive_type, filename, content):
         """Add a file to an archive, handling size-based partitioning"""

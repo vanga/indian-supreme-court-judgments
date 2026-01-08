@@ -184,7 +184,7 @@ def get_latest_date_from_metadata(s3_bucket, force_check_files=False):
     return find_latest_decision_date_in_zip(latest_zip)
 
 
-def run_downloader(start_date, end_date):
+def run_downloader(start_date, end_date, archive_manager=None):
     """Helper function to run the downloader for a date range"""
     # Import here to avoid circular dependency
     from download import run
@@ -193,6 +193,7 @@ def run_downloader(start_date, end_date):
     run(
         start_date=(start_date + timedelta(days=1)).strftime("%Y-%m-%d"),
         end_date=end_date.strftime("%Y-%m-%d"),
+        archive_manager=archive_manager,
     )
 
 
@@ -217,8 +218,11 @@ def run_sync_s3(
     all_changes = {}
     upload_metadata = {}
 
-    # The archive_manager context ensures proper cleanup even if we don't write to it
-    with S3ArchiveManager(s3_bucket, s3_prefix, local_dir) as archive_manager:
+    # The archive_manager with immediate_upload enabled uploads each part as it's created
+    # This prevents data loss if the script crashes mid-download
+    with S3ArchiveManager(
+        s3_bucket, s3_prefix, local_dir, immediate_upload=True
+    ) as archive_manager:
         # Check if we're up to date
         if latest_date.date() >= today:
             logger.info("✅ Data is up-to-date. No new downloads needed.")
@@ -226,7 +230,7 @@ def run_sync_s3(
             logger.info(
                 f"📥 New data available from {latest_date.date() + timedelta(days=1)} to {today}"
             )
-            run_downloader(latest_date.date(), today)
+            run_downloader(latest_date.date(), today, archive_manager)
             changes_made = True
 
         # Get changes before exiting context
@@ -235,34 +239,16 @@ def run_sync_s3(
             upload_metadata = archive_manager.get_upload_metadata()
 
     # AFTER the with block completes (archives are now uploaded to S3)
-    # Save changes summary if any changes were made
+    # Log summary of changes
     if changes_made and all_changes:
-        summary_payload = {
-            "sync_type": "sync-s3",
-            "date_range": {
-                "from": str(latest_date.date() + timedelta(days=1)),
-                "to": str(today),
-            },
-            "generated_at": datetime.now().isoformat(),
-            "years": {str(year): meta for year, meta in upload_metadata.items()},
-            "files": all_changes,
-        }
-
-        # Append to cumulative all_changes.json
-        all_changes_path = Path("./all_sync_changes.json")
-        all_sync_changes = []
-        if all_changes_path.exists():
-            try:
-                with open(all_changes_path, "r") as f:
-                    all_sync_changes = json.load(f)
-            except Exception:
-                all_sync_changes = []
-
-        all_sync_changes.append(summary_payload)
-
-        with open(all_changes_path, "w") as f:
-            json.dump(all_sync_changes, f, indent=2)
-        logger.info(f"📝 Changes appended to {all_changes_path.resolve()}")
+        logger.info("\n📊 Sync Summary:")
+        logger.info(
+            f"  Date range: {latest_date.date() + timedelta(days=1)} to {today}"
+        )
+        for year, archives in all_changes.items():
+            logger.info(f"  Year {year}:")
+            for archive_type, files in archives.items():
+                logger.info(f"    {archive_type}: {len(files)} files")
 
     # Check if any new files were actually downloaded in this run
     if latest_date.date() < today:

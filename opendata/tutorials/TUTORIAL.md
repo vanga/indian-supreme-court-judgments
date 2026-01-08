@@ -32,7 +32,7 @@ Index files provide information about the contents of each zip file without havi
 
 ```bash
 # Download an index file for English judgments from 2023
-aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/english.index.json . --no-sign-request
+aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/english/english.index.json . --no-sign-request
 
 # Examine the contents using jq (if installed)
 jq . english.index.json
@@ -70,8 +70,8 @@ for i, obj in enumerate(response['Contents']):
 
 # Download and read an index file
 obj = s3_client.get_object(
-    Bucket='indian-supreme-court-judgments', 
-    Key='data/zip/year=2023/english.index.json'
+    Bucket='indian-supreme-court-judgments',
+    Key='data/zip/year=2023/english/english.index.json'
 )
 index_content = json.loads(obj['Body'].read().decode('utf-8'))
 print(f"Index content structure: {index_content}")
@@ -81,8 +81,8 @@ if 'files' in index_content:
 
 # Download a zip file and extract its contents
 obj = s3_client.get_object(
-    Bucket='indian-supreme-court-judgments', 
-    Key='data/zip/year=2023/english.zip'
+    Bucket='indian-supreme-court-judgments',
+    Key='data/zip/year=2023/english/english.zip'
 )
 zip_content = obj['Body'].read()
 
@@ -145,74 +145,73 @@ TBLPROPERTIES (
 
 ```sql
 -- Count judgments by year
-SELECT 
+SELECT
   year,
   COUNT(*) as judgment_count
-FROM 
+FROM
   supreme_court_judgments.judgments
-GROUP BY 
+GROUP BY
   year
-ORDER BY 
+ORDER BY
   year DESC;
 
 -- Find the most active judges in 2024
-SELECT 
+SELECT
   judge,
   COUNT(*) as judgment_count
-FROM 
+FROM
   supreme_court_judgments.judgments
-WHERE 
+WHERE
   year = '2024'
-GROUP BY 
+GROUP BY
   judge
-ORDER BY 
+ORDER BY
   judgment_count DESC
 LIMIT 10;
 
 -- Analyze disposal nature trends over time
-SELECT 
+SELECT
   year,
   disposal_nature,
   COUNT(*) as count
-FROM 
+FROM
   supreme_court_judgments.judgments
-WHERE 
+WHERE
   year BETWEEN '2020' AND '2025'
   AND disposal_nature IS NOT NULL
-GROUP BY 
+GROUP BY
   year, disposal_nature
-ORDER BY 
+ORDER BY
   year DESC, count DESC;
 
 -- Find cases with specific petitioners
-SELECT 
+SELECT
   title,
   petitioner,
   respondent,
   decision_date,
   citation
-FROM 
+FROM
   supreme_court_judgments.judgments
-WHERE 
+WHERE
   petitioner LIKE '%Union of India%'
   AND year = '2025'
 LIMIT 20;
 
 -- Analyze case distribution by month in 2025
-SELECT 
+SELECT
   SUBSTR(decision_date, 1, 7) as month,
   COUNT(*) as case_count
-FROM 
+FROM
   supreme_court_judgments.judgments
-WHERE 
+WHERE
   year = '2025'
   AND decision_date IS NOT NULL
-GROUP BY 
+GROUP BY
   SUBSTR(decision_date, 1, 7)
-ORDER BY 
+ORDER BY
   month;
 ```
-
 
 ## Conclusion
 

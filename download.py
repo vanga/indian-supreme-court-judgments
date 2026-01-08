@@ -91,7 +91,7 @@ captcha_failures_dir.mkdir(parents=True, exist_ok=True)
 captcha_tmp_dir.mkdir(parents=True, exist_ok=True)
 temp_files_dir.mkdir(parents=True, exist_ok=True)
 
-S3_BUCKET = "indian-supreme-court-judgments"
+S3_BUCKET = "indian-supreme-court-judgments-test"
 S3_PREFIX = ""
 LOCAL_DIR = Path("./local_sc_judgments_data")
 PACKAGES_DIR = Path("./packages")
