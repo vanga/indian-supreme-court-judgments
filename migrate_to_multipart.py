@@ -416,6 +416,33 @@ class ArchiveMigrator:
             logger.error(f"Error deleting {s3_key}: {e}")
             return False
 
+    def delete_old_index(self, year: int, archive_type: str) -> bool:
+        """Delete old index file from flat structure (year=YYYY/*.index.json)"""
+        if archive_type == "metadata":
+            return True  # Metadata uses same location, no old index to delete
+            
+        old_index_key = f"data/zip/year={year}/{archive_type}.index.json"
+        
+        try:
+            # Check if old index exists
+            self.s3.head_object(Bucket=self.bucket_name, Key=old_index_key)
+            
+            if self.dry_run:
+                logger.info(f"DRY RUN: Would delete old index {old_index_key}")
+                return True
+            
+            logger.info(f"Deleting old index: {old_index_key}")
+            self.s3.delete_object(Bucket=self.bucket_name, Key=old_index_key)
+            logger.info(f"Deleted old index: {old_index_key}")
+            return True
+            
+        except self.s3.exceptions.ClientError as e:
+            if "404" in str(e):
+                logger.debug(f"Old index not found: {old_index_key} (already deleted or never existed)")
+            else:
+                logger.error(f"Error deleting old index {old_index_key}: {e}")
+            return False
+
     def create_and_upload_index(
         self,
         year: int,
@@ -515,6 +542,8 @@ class ArchiveMigrator:
 
             if len(parts) == 1:
                 logger.info("Archive fits in single part, keeping normal name")
+                    # Also delete old index file
+                    self.delete_old_index(year, archive_type)
                 # Create the single part with normal naming
                 part_files, estimated_size = parts[0]
 
@@ -552,6 +581,10 @@ class ArchiveMigrator:
             # Create and upload parts
             parts_info = []
             for idx, (part_files, estimated_size) in enumerate(parts):
+            
+            # Also delete old index file if migrating from old structure
+            if archive_info.get("is_old_structure", False):
+                self.delete_old_index(year, archive_type)
                 # First part uses normal name, subsequent parts use part-{ist-timestamp}.zip
                 if idx == 0:
                     part_name = f"{archive_type}.zip"
@@ -644,6 +677,9 @@ class ArchiveMigrator:
                                     f"Failed to upload {archive_type}.zip to new location"
                                 )
                                 continue
+                            
+                            # Also delete old index file
+                            self.delete_old_index(year, archive_type)
 
                             # Delete old archive after successful upload
                             if not self.delete_old_archive(archive_info["s3_key"]):
