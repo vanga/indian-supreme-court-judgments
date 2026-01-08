@@ -163,10 +163,28 @@ class IndexFileV2:
         return list(all_files)
 
     def add_part(self, part: IndexPart):
-        """Add a new part and update aggregated stats"""
-        self.parts.append(part)
-        self.file_count += part.file_count
-        self.total_size += part.size
+        """Add a new part or update existing part with same name, and update aggregated stats"""
+        # Check if a part with this name already exists
+        existing_part_idx = None
+        for idx, existing_part in enumerate(self.parts):
+            if existing_part.name == part.name:
+                existing_part_idx = idx
+                break
+
+        if existing_part_idx is not None:
+            # Update existing part - subtract old stats, replace part, add new stats
+            old_part = self.parts[existing_part_idx]
+            self.file_count -= old_part.file_count
+            self.total_size -= old_part.size
+            self.parts[existing_part_idx] = part
+            self.file_count += part.file_count
+            self.total_size += part.size
+        else:
+            # Add new part
+            self.parts.append(part)
+            self.file_count += part.file_count
+            self.total_size += part.size
+
         self.total_size_human = format_size(self.total_size)
         self.updated_at = utc_now_iso()
 
@@ -364,6 +382,9 @@ class S3ArchiveManager:
 
                 # Set current part size
                 self.current_part_size[key] = local_path.stat().st_size
+
+                # Load existing files from the archive so we have complete file list
+                self.current_part_files[key] = archive.namelist()
             else:
                 # Create new archive
                 return self._create_new_part(year, archive_type, is_first=True)
