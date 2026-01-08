@@ -610,10 +610,11 @@ class ArchiveMigrator:
             # Check if archive is in old structure and needs migration
             is_old_structure = archive_info.get("is_old_structure", False)
 
-            if archive_info["needs_split"]:
-                # Large archive that needs to be split into parts
+            # ALWAYS migrate/cleanup if OLD structure file exists, regardless of index
+            if is_old_structure and archive_info["needs_split"]:
+                # Large archive in OLD structure that needs to be split into parts
                 logger.info(
-                    f"Archive {archive_type} needs splitting (>{format_size(MAX_ARCHIVE_SIZE)})"
+                    f"Archive {archive_type} in OLD structure needs splitting (>{format_size(MAX_ARCHIVE_SIZE)})"
                 )
                 if self.migrate_archive(year, archive_type, archive_info):
                     success_count += 1
