@@ -338,16 +338,14 @@ class S3ArchiveManager:
             key = (year, archive_type)
 
             if key in self.archives:
-                # Check if we need to rotate to a new part
-                current_path = self.archive_paths.get(key)
-                if current_path and current_path.exists():
-                    current_size = current_path.stat().st_size
-                    if current_size >= self.max_archive_size:
-                        logger.info(
-                            f"Archive {current_path} reached size limit ({format_size(current_size)}), creating new part"
-                        )
-                        self._finalize_current_part(year, archive_type)
-                        return self._create_new_part(year, archive_type)
+                # Check if we need to rotate to a new part based on tracked content size
+                current_size = self.current_part_size.get(key, 0)
+                if current_size >= self.max_archive_size:
+                    logger.info(
+                        f"Archive for {year}/{archive_type} reached size limit ({format_size(current_size)}), creating new part"
+                    )
+                    self._finalize_current_part(year, archive_type)
+                    return self._create_new_part(year, archive_type)
 
                 return self.archives[key]
 
