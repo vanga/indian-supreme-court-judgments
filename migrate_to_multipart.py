@@ -164,22 +164,62 @@ class ArchiveMigrator:
         archives = {}
 
         for archive_type in ["english", "regional", "metadata"]:
-            if archive_type == "metadata":
-                s3_dir = f"metadata/zip/year={year}/"
-            else:
-                s3_dir = f"data/zip/year={year}/{archive_type}/"
-
             archive_name = f"{archive_type}.zip"
-            s3_key = f"{s3_dir}{archive_name}"
-            index_key = f"{s3_dir}{archive_type}.index.json"
+
+            # Determine old and new structure paths
+            if archive_type == "metadata":
+                # Metadata only has one location
+                old_s3_key = f"metadata/zip/year={year}/{archive_name}"
+                new_s3_key = old_s3_key  # Same location
+                new_s3_dir = f"metadata/zip/year={year}/"
+            else:
+                # English/Regional: check OLD flat structure first, then NEW subfolder structure
+                old_s3_key = f"data/zip/year={year}/{archive_name}"
+                new_s3_key = f"data/zip/year={year}/{archive_type}/{archive_name}"
+                new_s3_dir = f"data/zip/year={year}/{archive_type}/"
+
+            # Try OLD structure first (for migration)
+            s3_key = None
+            s3_dir = None
+            size = None
 
             try:
-                response = self.s3.head_object(Bucket=self.bucket_name, Key=s3_key)
+                response = self.s3.head_object(Bucket=self.bucket_name, Key=old_s3_key)
                 size = response["ContentLength"]
+                s3_key = old_s3_key
+                # For old structure, set destination dir as new structure
+                s3_dir = (
+                    new_s3_dir
+                    if archive_type != "metadata"
+                    else f"metadata/zip/year={year}/"
+                )
+                logger.info(
+                    f"Found {archive_type}.zip in OLD structure: {format_size(size)}"
+                )
+            except self.s3.exceptions.ClientError:
+                # Old structure not found, try NEW structure
+                if archive_type != "metadata":
+                    try:
+                        response = self.s3.head_object(
+                            Bucket=self.bucket_name, Key=new_s3_key
+                        )
+                        size = response["ContentLength"]
+                        s3_key = new_s3_key
+                        s3_dir = new_s3_dir
+                        logger.info(
+                            f"Found {archive_type}.zip in NEW structure: {format_size(size)}"
+                        )
+                    except self.s3.exceptions.ClientError as e:
+                        if "404" not in str(e):
+                            logger.error(f"Error checking {new_s3_key}: {e}")
+                        continue
 
-                # Check if index already exists
+            if s3_key and size is not None:
+                # Check if index already exists in new location
+                index_key = f"{s3_dir}{archive_type}.index.json"
                 index_exists = False
                 existing_index = None
+
                 try:
                     index_response = self.s3.get_object(
                         Bucket=self.bucket_name, Key=index_key
@@ -200,17 +240,13 @@ class ArchiveMigrator:
                     "needs_split": size > MAX_ARCHIVE_SIZE,
                     "index_exists": index_exists,
                     "existing_index": existing_index,
+                    "is_old_structure": s3_key == old_s3_key
+                    and archive_type != "metadata",
                 }
 
                 logger.info(
-                    f"Found {archive_type}.zip: {format_size(size)}, index exists: {index_exists}"
+                    f"  Size: {format_size(size)}, Index exists: {index_exists}"
                 )
-
-            except self.s3.exceptions.ClientError as e:
-                if "404" in str(e):
-                    logger.debug(f"Archive not found: {s3_key}")
-                else:
-                    logger.error(f"Error checking {s3_key}: {e}")
 
         return archives
 
