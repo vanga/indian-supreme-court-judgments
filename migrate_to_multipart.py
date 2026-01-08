@@ -536,8 +536,8 @@ class ArchiveMigrator:
                 if not self.upload_archive_part(part_path, part_s3_key):
                     return False
 
-                # Delete old archive only if the name is different
-                if archive_info["archive_name"] != part_name:
+                # Delete old archive if migrating from old structure
+                if archive_info.get("is_old_structure", False):
                     if not self.delete_old_archive(archive_info["s3_key"]):
                         logger.warning(
                             "Failed to delete old archive, but continuing..."
@@ -577,10 +577,10 @@ class ArchiveMigrator:
 
                 parts_info.append((part_name, part_files, actual_size))
 
-            # Delete old archive (only if it was split into multiple parts)
-            if len(parts) > 1:
-                if not self.delete_old_archive(archive_info["s3_key"]):
-                    logger.warning("Failed to delete old archive, but continuing...")
+            # Always delete old archive after successful multi-part upload
+            # (either from old structure or if it was a large single file being split)
+            if not self.delete_old_archive(archive_info["s3_key"]):
+                logger.warning("Failed to delete old archive, but continuing...")
 
             # Create and upload index
             if not self.create_and_upload_index(
@@ -607,47 +607,97 @@ class ArchiveMigrator:
         # Migrate archives that need splitting
         success_count = 0
         for archive_type, archive_info in archives.items():
+            # Check if archive is in old structure and needs migration
+            is_old_structure = archive_info.get("is_old_structure", False)
+
             if archive_info["needs_split"]:
+                # Large archive that needs to be split into parts
                 logger.info(
                     f"Archive {archive_type} needs splitting (>{format_size(MAX_ARCHIVE_SIZE)})"
                 )
                 if self.migrate_archive(year, archive_type, archive_info):
                     success_count += 1
+            elif is_old_structure:
+                # Archive is in old structure and needs to be migrated to new structure
+                logger.info(
+                    f"Archive {archive_type} is under size limit but in OLD structure, migrating to NEW structure"
+                )
+                # Download archive to list files and upload to new location
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    temp_path = Path(temp_dir)
+                    archive_path = temp_path / archive_info["archive_name"]
+
+                    if self.download_archive(archive_info["s3_key"], archive_path):
+                        try:
+                            # List files for index
+                            with zipfile.ZipFile(archive_path, "r") as zf:
+                                files = zf.namelist()
+
+                            # Upload to new location
+                            logger.info(
+                                f"Uploading {archive_type}.zip to NEW structure"
+                            )
+                            new_s3_key = f"{archive_info['s3_dir']}{archive_info['archive_name']}"
+                            if not self.upload_archive_part(archive_path, new_s3_key):
+                                logger.error(
+                                    f"Failed to upload {archive_type}.zip to new location"
+                                )
+                                continue
+
+                            # Delete old archive after successful upload
+                            if not self.delete_old_archive(archive_info["s3_key"]):
+                                logger.warning(
+                                    "Failed to delete old archive, but continuing..."
+                                )
+
+                            # Create/update index with the archive as a single part
+                            part_name = f"{archive_type}.zip"
+                            parts_info = [(part_name, files, archive_info["size"])]
+
+                            if self.create_and_upload_index(
+                                year,
+                                archive_type,
+                                archive_info["s3_dir"],
+                                parts_info,
+                            ):
+                                success_count += 1
+                        except Exception as e:
+                            logger.error(f"Error migrating {archive_type}: {e}")
+            elif archive_info["index_exists"]:
+                # Archive already in new structure with index
+                logger.info(
+                    f"Archive {archive_type} is under size limit and already in NEW structure, skipping"
+                )
+                success_count += 1
             else:
-                # Archive is under size limit
-                if archive_info["index_exists"]:
-                    logger.info(
-                        f"Archive {archive_type} is under size limit and index already exists, skipping"
-                    )
-                    success_count += 1
-                else:
-                    logger.info(
-                        f"Archive {archive_type} is under size limit, creating index from existing data"
-                    )
-                    # Download only to list files for creating index
-                    with tempfile.TemporaryDirectory() as temp_dir:
-                        temp_path = Path(temp_dir)
-                        archive_path = temp_path / archive_info["archive_name"]
+                # Archive in new structure but missing index - create index only
+                logger.info(
+                    f"Archive {archive_type} is in NEW structure but missing index, creating index"
+                )
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    temp_path = Path(temp_dir)
+                    archive_path = temp_path / archive_info["archive_name"]
 
-                        if self.download_archive(archive_info["s3_key"], archive_path):
-                            # List files without extracting
-                            try:
-                                with zipfile.ZipFile(archive_path, "r") as zf:
-                                    files = zf.namelist()
+                    if self.download_archive(archive_info["s3_key"], archive_path):
+                        try:
+                            with zipfile.ZipFile(archive_path, "r") as zf:
+                                files = zf.namelist()
 
-                                # Create index with the existing archive as a single part
-                                part_name = f"{archive_type}.zip"
-                                parts_info = [(part_name, files, archive_info["size"])]
+                            # Create index with the existing archive as a single part
+                            part_name = f"{archive_type}.zip"
+                            parts_info = [(part_name, files, archive_info["size"])]
 
-                                if self.create_and_upload_index(
-                                    year,
-                                    archive_type,
-                                    archive_info["s3_dir"],
-                                    parts_info,
-                                ):
-                                    success_count += 1
-                            except Exception as e:
-                                logger.error(f"Error listing files in archive: {e}")
+                            if self.create_and_upload_index(
+                                year,
+                                archive_type,
+                                archive_info["s3_dir"],
+                                parts_info,
+                            ):
+                                success_count += 1
+                        except Exception as e:
+                            logger.error(
+                                f"Error creating index for {archive_type}: {e}"
+                            )
 
         logger.info(
             f"\nYear {year}: Successfully migrated {success_count}/{len(archives)} archives"
