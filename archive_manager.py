@@ -371,51 +371,91 @@ class S3ArchiveManager:
             if key not in self.indexes:
                 self.indexes[key] = self._load_index_from_s3(year, archive_type)
 
+            index = self.indexes[key]
+
+            # Determine if we should try to work with the main archive
+            # Only work with main archive if index shows it exists (has a part named {archive_type}.zip)
+            main_archive_name = (
+                f"{archive_type}{self._get_archive_extension(archive_type)}"
+            )
+            has_main_in_index = any(
+                part.name == main_archive_name for part in index.parts
+            )
+
             # Check if main archive exists and download it
-            local_path = self._download_main_archive_if_exists(year, archive_type)
+            local_path = None
+            if has_main_in_index or len(index.parts) == 0:
+                # Either main archive should exist, or this is the very first archive
+                local_path = self._download_main_archive_if_exists(year, archive_type)
 
             if local_path and local_path.exists():
+                # Check if the existing archive is already at size limit
+                existing_size = local_path.stat().st_size
+                if existing_size >= self.max_archive_size:
+                    logger.info(
+                        f"Main archive {local_path.name} already at size limit ({format_size(existing_size)}), creating new part"
+                    )
+                    # The main archive is full, create a new part instead
+                    return self._create_new_part(year, archive_type, is_first=False)
+
                 # Open existing archive for appending
                 archive = zipfile.ZipFile(local_path, "a", zipfile.ZIP_DEFLATED)
                 self.archives[key] = archive
                 self.archive_paths[key] = local_path
 
                 # Set current part size
-                self.current_part_size[key] = local_path.stat().st_size
+                self.current_part_size[key] = existing_size
 
                 # Load existing files from the archive so we have complete file list
                 self.current_part_files[key] = archive.namelist()
             else:
                 # Create new archive
-                return self._create_new_part(year, archive_type, is_first=True)
+                # is_first=True only if index has no parts at all
+                is_first = len(index.parts) == 0
+                return self._create_new_part(year, archive_type, is_first=is_first)
 
             return self.archives[key]
 
     def _create_new_part(
         self, year: int, archive_type: str, is_first: bool = False
     ) -> zipfile.ZipFile:
-        """Create a new archive part"""
+        """Create a new archive part
+
+        Args:
+            year: Year for the archive
+            archive_type: Type of archive (english, regional, metadata)
+            is_first: True ONLY if this is the very first archive ever (no existing parts in index)
+        """
         key = (year, archive_type)
         year_dir = self.local_dir / str(year)
         year_dir.mkdir(parents=True, exist_ok=True)
 
         ext = self._get_archive_extension(archive_type)
 
-        # First part: {archive_type}{ext}, subsequent parts: part-{ist-timestamp}{ext}
-        # Use the session parts count, not the index length (which isn't updated until upload)
+        # Determine archive name based on whether this is truly the first part
         index = self.indexes.get(key, IndexFileV2())
-        total_parts = len(index.parts) + self.parts_created_count.get(key, 0)
 
-        if total_parts == 0:
+        # Only use the main name if:
+        # 1. is_first is True (caller says this is first)
+        # 2. AND index has no parts (no previous uploads)
+        if is_first and len(index.parts) == 0:
             # First part uses normal name
             archive_name = f"{archive_type}{ext}"
+            logger.info(f"Creating first archive part: {archive_name}")
         else:
-            # Subsequent parts use part-{ist-timestamp} format
+            # Subsequent parts use part-{timestamp} format
+            # Add a small sleep to ensure unique timestamps if called multiple times
+            import time
+
+            time.sleep(0.01)
             now_iso = utc_now_iso()
             ts = datetime.fromisoformat(now_iso.replace("Z", "+00:00")).strftime(
                 "%Y%m%dT%H%M%S"
             )
             archive_name = f"part-{ts}{ext}"
+            logger.info(
+                f"Creating new archive part: {archive_name} (index has {len(index.parts)} existing parts)"
+            )
 
         local_path = year_dir / archive_name
 
