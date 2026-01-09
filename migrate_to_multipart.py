@@ -734,12 +734,46 @@ class ArchiveMigrator:
                             logger.error(f"Error migrating {archive_type}: {e}")
                             stats["errors"] += 1
             elif archive_info["index_exists"]:
-                # Archive already in new structure with index (shouldn't reach here due to earlier check)
-                logger.info(
-                    f"Archive {archive_type} is under size limit and already in NEW structure, skipping"
-                )
-                stats["already_v2"] += 1
-                success_count += 1
+                # Archive has index, but need to verify it's V2 format
+                if self.is_already_v2_format(archive_info["existing_index"]):
+                    logger.info(
+                        f"✓ Archive {archive_type} is under size limit and already in V2 format, skipping"
+                    )
+                    stats["already_v2"] += 1
+                    success_count += 1
+                else:
+                    # Index exists but is OLD format - need to convert to V2
+                    logger.info(
+                        f"Archive {archive_type} has OLD format index, converting to V2"
+                    )
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        temp_path = Path(temp_dir)
+                        archive_path = temp_path / archive_info["archive_name"]
+
+                        if self.download_archive(archive_info["s3_key"], archive_path):
+                            try:
+                                with zipfile.ZipFile(archive_path, "r") as zf:
+                                    files = zf.namelist()
+
+                                # Create V2 index with single part
+                                part_name = f"{archive_type}.zip"
+                                parts_info = [(part_name, files, archive_info["size"])]
+
+                                if self.create_and_upload_index(
+                                    year,
+                                    archive_type,
+                                    archive_info["s3_dir"],
+                                    parts_info,
+                                ):
+                                    stats["created_index"] += 1
+                                    success_count += 1
+                                else:
+                                    stats["errors"] += 1
+                            except Exception as e:
+                                logger.error(
+                                    f"Error converting index for {archive_type}: {e}"
+                                )
+                                stats["errors"] += 1
             else:
                 # Archive in new structure but missing index - create index only
                 logger.info(
