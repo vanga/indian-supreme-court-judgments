@@ -48,17 +48,15 @@ def format_size(size_bytes: int) -> str:
         return f"{size:.2f} {size_units[unit_index]}"
 
 
-def utc_now_iso() -> str:
-    """Return current UTC time in ISO format"""
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+def ist_now_iso() -> str:
+    """Return current IST time in ISO format"""
+    return datetime.now(IST).isoformat()
 
 
 def generate_part_name(now_iso: str) -> str:
     """Generate a unique part name using timestamp"""
-    # Use compact timestamp: YYYYMMDDThhmmssZ
-    ts = datetime.fromisoformat(now_iso.replace("Z", "+00:00")).strftime(
-        "%Y%m%dT%H%M%SZ"
-    )
+    # Use compact timestamp: YYYYMMDDThhmmss
+    ts = datetime.fromisoformat(now_iso).strftime("%Y%m%dT%H%M%S")
     return f"part-{ts}"
 
 
@@ -186,7 +184,7 @@ class IndexFileV2:
             self.total_size += part.size
 
         self.total_size_human = format_size(self.total_size)
-        self.updated_at = utc_now_iso()
+        self.updated_at = ist_now_iso()
 
 
 class S3ArchiveManager:
@@ -295,7 +293,7 @@ class S3ArchiveManager:
         except self.s3.exceptions.ClientError as e:
             if "NoSuchKey" in str(e) or "404" in str(e):
                 # Create new empty index
-                now = utc_now_iso()
+                now = ist_now_iso()
                 return IndexFileV2(
                     year=year,
                     archive_type=archive_type,
@@ -310,7 +308,7 @@ class S3ArchiveManager:
             raise
         except Exception as e:
             logger.error(f"Error loading index from S3: {e}")
-            now = utc_now_iso()
+            now = ist_now_iso()
             return IndexFileV2(
                 year=year,
                 archive_type=archive_type,
@@ -448,7 +446,7 @@ class S3ArchiveManager:
             import time
 
             time.sleep(0.01)
-            now_iso = utc_now_iso()
+            now_iso = ist_now_iso()
             ts = datetime.fromisoformat(now_iso.replace("Z", "+00:00")).strftime(
                 "%Y%m%dT%H%M%S"
             )
@@ -543,7 +541,7 @@ class S3ArchiveManager:
             file_count=part_info["file_count"],
             size=part_info["size"],
             size_human=part_info["size_human"],
-            created_at=utc_now_iso(),
+            created_at=ist_now_iso(),
         )
         index.add_part(new_part)
 
@@ -689,7 +687,7 @@ class S3ArchiveManager:
                 file_count=part_info["file_count"],
                 size=part_info["size"],
                 size_human=part_info["size_human"],
-                created_at=utc_now_iso(),
+                created_at=ist_now_iso(),
             )
             index.add_part(new_part)
 

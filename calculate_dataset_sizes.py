@@ -28,42 +28,46 @@ def get_dataset_sizes():
 
     logger.info("Reading index files from S3...")
 
-    # List all index.json files
+    # List all index.json files - ONLY from data/ and metadata/, NOT data-old/
     paginator = s3.get_paginator("list_objects_v2")
 
-    for page in paginator.paginate(Bucket=BUCKET):
-        if "Contents" not in page:
-            continue
-
-        for obj in page["Contents"]:
-            key = obj["Key"]
-
-            # Look for index.json files
-            if not key.endswith(".index.json"):
+    # Process data/zip/ directory only
+    for prefix in ["data/zip/", "metadata/zip/"]:
+        for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+            if "Contents" not in page:
                 continue
 
-            # Extract year from path like: data/zip/year=2023/english/english.index.json or data/zip/year=2023/regional/regional.index.json
-            year_match = re.search(r"year=(\d{4})/", key)
-            if not year_match:
-                continue
+            for obj in page["Contents"]:
+                key = obj["Key"]
 
-            year = year_match.group(1)
+                # Look for index.json files
+                if not key.endswith(".index.json"):
+                    continue
 
-            try:
-                # Download and read the index file
-                response = s3.get_object(Bucket=BUCKET, Key=key)
-                index_data = json.loads(response["Body"].read().decode("utf-8"))
+                # Extract year from path like: data/zip/year=2023/english/english.index.json
+                year_match = re.search(r"year=(\d{4})/", key)
+                if not year_match:
+                    continue
 
-                # Get zip_size from index
-                zip_size = index_data.get("zip_size", 0)
-                if zip_size > 0:
-                    year_sizes[year] += zip_size
-                    logger.info(
-                        f"Year {year}: Found {bytes_to_gb(zip_size)} GB in {key.split('/')[-1]}"
+                year = year_match.group(1)
+
+                try:
+                    # Download and read the index file
+                    response = s3.get_object(Bucket=BUCKET, Key=key)
+                    index_data = json.loads(response["Body"].read().decode("utf-8"))
+
+                    # Get total_size from index (V2 format) or fall back to zip_size (old format)
+                    total_size = index_data.get(
+                        "total_size", index_data.get("zip_size", 0)
                     )
+                    if total_size > 0:
+                        year_sizes[year] += total_size
+                        logger.info(
+                            f"Year {year}: Found {bytes_to_gb(total_size)} GB in {key}"
+                        )
 
-            except Exception as e:
-                logger.warning(f"Could not read {key}: {e}")
+                except Exception as e:
+                    logger.warning(f"Could not read {key}: {e}")
 
     return year_sizes
 

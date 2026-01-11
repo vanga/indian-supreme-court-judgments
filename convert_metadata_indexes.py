@@ -16,7 +16,7 @@ import argparse
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 import boto3
@@ -26,6 +26,9 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# Indian Standard Time timezone
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def format_size(size_bytes: int) -> str:
@@ -47,9 +50,9 @@ def format_size(size_bytes: int) -> str:
         return f"{size:.2f} {size_units[unit_index]}"
 
 
-def utc_now_iso() -> str:
-    """Return current UTC time in ISO format"""
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+def ist_now_iso() -> str:
+    """Return current IST time in ISO format"""
+    return datetime.now(IST).isoformat()
 
 
 @dataclass
@@ -148,7 +151,7 @@ class MetadataIndexConverter:
 
     def convert_to_v2(self, year: int, old_index: dict) -> IndexFileV2:
         """Convert old index format to V2 with parts array"""
-        now = utc_now_iso()
+        now = ist_now_iso()
 
         # Get metadata.zip size from S3
         metadata_zip_key = f"metadata/zip/year={year}/metadata.zip"

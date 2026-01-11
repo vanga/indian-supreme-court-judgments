@@ -233,7 +233,7 @@ class SupremeCourtS3Processor:
     def write_records_to_s3(self, records, year):
         """Write records directly to S3 as parquet."""
         if not records:
-            return
+            return 0
 
         # Ensure all records have all fields
         for record in records:

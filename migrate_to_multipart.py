@@ -61,7 +61,7 @@ def format_size(size_bytes: int) -> str:
         return f"{size:.2f} {size_units[unit_index]}"
 
 
-def utc_now_iso() -> str:
+def ist_now_iso() -> str:
     """Return current IST time in ISO format"""
     return datetime.now(IST).isoformat()
 
@@ -465,7 +465,7 @@ class ArchiveMigrator:
         parts_info: List of (part_name, files, size) tuples
         """
         try:
-            now = utc_now_iso()
+            now = ist_now_iso()
 
             # Create index with parts
             index = IndexFileV2(
@@ -601,7 +601,7 @@ class ArchiveMigrator:
                 if idx == 0:
                     part_name = f"{archive_type}.zip"
                 else:
-                    now_iso = utc_now_iso()
+                    now_iso = ist_now_iso()
                     ts = datetime.fromisoformat(now_iso).strftime("%Y%m%dT%H%M%S")
                     part_name = f"part-{ts}.zip"
 
