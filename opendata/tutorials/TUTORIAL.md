@@ -23,16 +23,16 @@ aws s3 ls s3://indian-supreme-court-judgments/ --no-sign-request
 aws s3 ls s3://indian-supreme-court-judgments/data/ --no-sign-request
 
 # List files for a specific year (example: 2023)
-aws s3 ls s3://indian-supreme-court-judgments/data/ --no-sign-request | grep 2023
+aws s3 ls s3://indian-supreme-court-judgments/data/tar/year=2023/ --no-sign-request
 ```
 
 ### Downloading and Examining Index Files
 
-Index files provide information about the contents of each zip file without having to download the entire archive:
+Index files provide information about the contents of each tar file without having to download the entire archive:
 
 ```bash
 # Download an index file for English judgments from 2023
-aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/english/english.index.json . --no-sign-request
+aws s3 cp s3://indian-supreme-court-judgments/data/tar/year=2023/english/english.index.json . --no-sign-request
 
 # Examine the contents using jq (if installed)
 jq . english.index.json
@@ -48,7 +48,7 @@ You can also access the data programmatically using Python:
 ```python
 import boto3
 import json
-import zipfile
+import tarfile
 import io
 from botocore import UNSIGNED
 from botocore.client import Config
@@ -71,7 +71,7 @@ for i, obj in enumerate(response['Contents']):
 # Download and read an index file
 obj = s3_client.get_object(
     Bucket='indian-supreme-court-judgments',
-    Key='data/zip/year=2023/english/english.index.json'
+    Key='data/tar/year=2023/english/english.index.json'
 )
 index_content = json.loads(obj['Body'].read().decode('utf-8'))
 print(f"Index content structure: {index_content}")
@@ -79,24 +79,25 @@ print(f"Number of files in archive: {index_content.get('file_count', 'Unknown')}
 if 'files' in index_content:
     print(f"First 5 files: {index_content['files'][:5]}")
 
-# Download a zip file and extract its contents
+# Download a tar file and extract its contents
 obj = s3_client.get_object(
     Bucket='indian-supreme-court-judgments',
-    Key='data/zip/year=2023/english/english.zip'
+    Key='data/tar/year=2023/english/english.tar'
 )
-zip_content = obj['Body'].read()
+tar_content = obj['Body'].read()
 
-# Create a zipfile object from the binary content
-z = zipfile.ZipFile(io.BytesIO(zip_content))
-print(f"Files in zip: {len(z.namelist())}")
-print(f"First 5 files: {z.namelist()[:5]}")
+# Create a tarfile object from the binary content
+with tarfile.open(fileobj=io.BytesIO(tar_content), mode='r') as tf:
+    print(f"Files in tar: {len(tf.getnames())}")
+    print(f"First 5 files: {tf.getnames()[:5]}")
 
-# Extract and read a specific file (adjust the filename as needed)
-sample_file = z.namelist()[0]
-with z.open(sample_file) as f:
-    content = f.read().decode('utf-8')
-    print(f"Sample content from {sample_file} (first 500 chars):")
-    print(content[:500])
+    # Extract and read a specific file (adjust the filename as needed)
+    sample_file = tf.getnames()[0]
+    f = tf.extractfile(sample_file)
+    if f:
+        content = f.read().decode('utf-8')
+        print(f"Sample content from {sample_file} (first 500 chars):")
+        print(content[:500])
 ```
 
 ## 2. Analyzing Judgments by Year using Amazon Athena
@@ -131,13 +132,13 @@ CREATE EXTERNAL TABLE supreme_court_judgments.judgments (
 )
 PARTITIONED BY (year STRING)
 STORED AS PARQUET
-LOCATION 's3://indian-supreme-court-judgments/metadata/'
+LOCATION 's3://indian-supreme-court-judgments/metadata/parquet/'
 TBLPROPERTIES (
   'has_encrypted_data'='false',
   'projection.enabled'='true',
   'projection.year.type'='integer',
   'projection.year.range'='1950,2025',
-  'storage.location.template'='s3://indian-supreme-court-judgments/metadata/year=${year}/metadata.parquet'
+  'storage.location.template'='s3://indian-supreme-court-judgments/metadata/parquet/year=${year}/'
 )
 ```
 
