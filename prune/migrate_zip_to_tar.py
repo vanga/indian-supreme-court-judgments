@@ -3,15 +3,15 @@
 Migration Script: Convert ZIP archives to TAR format in S3
 
 This script migrates the bucket from ZIP to TAR format:
-1. Downloads all ZIP files (including multi-part: regional.zip + part-*.zip)
-2. Extracts all files from all parts
-3. Creates a single uncompressed TAR archive
-4. Uploads to data/tar/ and metadata/tar/ with new structure
-5. Creates/updates index files with correct totals
+1. Each ZIP file becomes a TAR file (1:1 conversion, preserving multi-part structure)
+2. regional.zip -> regional.tar
+3. part-20260109T093548.zip -> part-20260109T093548.tar
+4. Index file is updated with all parts
 
-Multi-part ZIP structure:
-- Main file: {archive_type}.zip (e.g., regional.zip)
-- Additional parts: part-{datetime}.zip (e.g., part-20260109T093548.zip)
+Multi-part structure is PRESERVED:
+- regional.zip (968 MB) -> regional.tar
+- part-20260109T093804.zip (950 MB) -> part-20260109T093804.tar
+- part-20260109T093849.zip (326 MB) -> part-20260109T093849.tar
 
 Usage:
     AWS_PROFILE=dattam-supreme python migrate_zip_to_tar.py --bucket indian-supreme-court-judgments-test
@@ -20,18 +20,15 @@ Usage:
 """
 
 import argparse
-import io
 import json
 import logging
-import os
-import re
 import tarfile
 import tempfile
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import boto3
 from tqdm import tqdm
@@ -231,76 +228,69 @@ class ZipToTarMigrator:
 
         return archives
 
-    def download_zip(self, s3_key: str, local_path: Path) -> bool:
-        """Download a ZIP file from S3"""
+    def convert_single_zip_to_tar(
+        self, zip_s3_key: str, temp_dir: Path
+    ) -> Tuple[bool, Path, List[str]]:
+        """
+        Convert a single ZIP file to TAR format.
+        Downloads ZIP, extracts to disk, creates TAR, returns TAR path and file list.
+        Memory efficient - uses disk for extraction.
+        """
+        zip_filename = zip_s3_key.split("/")[-1]
+        tar_filename = zip_filename.replace(".zip", ".tar")
+
+        zip_path = temp_dir / zip_filename
+        extract_dir = temp_dir / "extract"
+        extract_dir.mkdir(exist_ok=True)
+        tar_path = temp_dir / tar_filename
+
+        # Download ZIP
         try:
-            logger.info(f"Downloading {s3_key}...")
-            self.s3.download_file(self.bucket_name, s3_key, str(local_path))
-            return True
+            logger.info(f"Downloading {zip_filename}...")
+            self.s3.download_file(self.bucket_name, zip_s3_key, str(zip_path))
         except Exception as e:
-            logger.error(f"Error downloading {s3_key}: {e}")
-            return False
+            logger.error(f"Error downloading {zip_s3_key}: {e}")
+            return False, None, []
 
-    def extract_files_from_zips(
-        self, zip_files: List[dict], temp_dir: Path, extract_dir: Path
-    ) -> Tuple[bool, set]:
-        """
-        Download and extract all files from multiple ZIP archives to disk.
-        Returns a set of unique filenames extracted.
-        Uses disk instead of RAM to handle large archives.
-        """
-        extracted_files = set()
-
-        for zip_info in zip_files:
-            zip_path = temp_dir / zip_info["filename"]
-
-            # Download ZIP
-            if not self.download_zip(zip_info["key"], zip_path):
-                return False, set()
-
-            # Extract files to disk
-            try:
-                logger.info(f"Extracting {zip_info['filename']} to disk...")
-                with zipfile.ZipFile(zip_path, "r") as zf:
-                    members = zf.namelist()
-                    for name in tqdm(members, desc=f"Extracting {zip_info['filename']}"):
-                        if name not in extracted_files:  # Avoid duplicates
-                            # Extract directly to disk
-                            zf.extract(name, extract_dir)
-                            extracted_files.add(name)
-
-                logger.info(f"Extracted {len(members)} files from {zip_info['filename']}")
-
-                # Remove ZIP to save space
-                zip_path.unlink()
-
-            except Exception as e:
-                logger.error(f"Error extracting {zip_info['filename']}: {e}")
-                return False, set()
-
-        return True, extracted_files
-
-    def create_tar_from_disk(
-        self, extract_dir: Path, file_list: set, tar_path: Path
-    ) -> Tuple[bool, List[str]]:
-        """Create a TAR archive from files on disk (memory-efficient)"""
-        files = []
+        # Extract ZIP to disk
+        file_list = []
         try:
-            logger.info(f"Creating TAR with {len(file_list)} files from disk...")
+            logger.info(f"Extracting {zip_filename} to disk...")
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                members = zf.namelist()
+                for name in tqdm(members, desc=f"Extracting"):
+                    zf.extract(name, extract_dir)
+                    file_list.append(name)
 
+            logger.info(f"Extracted {len(file_list)} files")
+
+            # Remove ZIP to save disk space
+            zip_path.unlink()
+
+        except Exception as e:
+            logger.error(f"Error extracting {zip_filename}: {e}")
+            return False, None, []
+
+        # Create TAR from extracted files
+        try:
+            logger.info(f"Creating {tar_filename}...")
             with tarfile.open(tar_path, "w") as tf:
-                for name in tqdm(sorted(file_list), desc="Creating TAR"):
+                for name in tqdm(file_list, desc="Creating TAR"):
                     file_path = extract_dir / name
                     if file_path.exists():
                         tf.add(file_path, arcname=name)
-                        files.append(name)
 
-            logger.info(f"Created TAR with {len(files)} files: {format_size(tar_path.stat().st_size)}")
-            return True, files
+            logger.info(f"Created {tar_filename}: {format_size(tar_path.stat().st_size)}")
 
         except Exception as e:
             logger.error(f"Error creating TAR: {e}")
-            return False, []
+            return False, None, []
+
+        # Clean up extracted files to save disk space
+        import shutil
+        shutil.rmtree(extract_dir)
+
+        return True, tar_path, file_list
 
     def upload_tar(self, local_path: Path, s3_key: str) -> bool:
         """Upload a TAR file to S3"""
@@ -364,6 +354,9 @@ class ZipToTarMigrator:
             logger.info(f"DRY RUN: Would upload index to {index_key}")
             logger.info(f"  - file_count: {index.file_count}")
             logger.info(f"  - total_size: {index.total_size_human}")
+            logger.info(f"  - parts: {len(parts)}")
+            for p in parts:
+                logger.info(f"    - {p.name}: {p.file_count} files, {p.size_human}")
             return True
 
         try:
@@ -395,60 +388,65 @@ class ZipToTarMigrator:
             return results
 
         for archive_type, archive_info in archives.items():
-            logger.info(f"\n--- Migrating {archive_type} ---")
+            logger.info(f"\n--- Migrating {archive_type} ({len(archive_info['zip_files'])} parts) ---")
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_path = Path(temp_dir)
-                extract_path = temp_path / "extracted"
-                extract_path.mkdir()
+            # Determine target S3 directory
+            if archive_type == "metadata":
+                tar_s3_dir = f"metadata/tar/year={year}/"
+            else:
+                tar_s3_dir = f"data/tar/year={year}/{archive_type}/"
 
-                # Extract all files from all ZIP parts to disk
-                success, extracted_files = self.extract_files_from_zips(
-                    archive_info["zip_files"], temp_path, extract_path
-                )
-                if not success:
-                    results[archive_type] = False
-                    continue
+            # Process each ZIP file separately (1:1 conversion)
+            parts_info = []
+            all_success = True
 
-                logger.info(f"Total unique files extracted: {len(extracted_files)}")
+            for zip_info in archive_info["zip_files"]:
+                logger.info(f"\n  Processing {zip_info['filename']}...")
 
-                # Create single TAR from files on disk
-                tar_path = temp_path / f"{archive_type}.tar"
-                success, file_list = self.create_tar_from_disk(extract_path, extracted_files, tar_path)
-                if not success:
-                    results[archive_type] = False
-                    continue
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    temp_path = Path(temp_dir)
 
-                # Clear set to free memory (minimal)
-                extracted_files.clear()
+                    # Convert single ZIP to TAR
+                    success, tar_path, file_list = self.convert_single_zip_to_tar(
+                        zip_info["key"], temp_path
+                    )
 
-                # Determine target S3 path
-                if archive_type == "metadata":
-                    tar_s3_dir = f"metadata/tar/year={year}/"
-                else:
-                    tar_s3_dir = f"data/tar/year={year}/{archive_type}/"
+                    if not success:
+                        all_success = False
+                        break
 
-                tar_s3_key = f"{tar_s3_dir}{archive_type}.tar"
+                    # Determine TAR filename (same as ZIP but with .tar)
+                    tar_filename = zip_info["filename"].replace(".zip", ".tar")
+                    tar_s3_key = f"{tar_s3_dir}{tar_filename}"
 
-                # Upload TAR
-                if not self.upload_tar(tar_path, tar_s3_key):
-                    results[archive_type] = False
-                    continue
+                    # Upload TAR
+                    if not self.upload_tar(tar_path, tar_s3_key):
+                        all_success = False
+                        break
 
-                # Create and upload index
-                tar_size = tar_path.stat().st_size
-                parts_info = [(f"{archive_type}.tar", file_list, tar_size)]
+                    # Record part info for index
+                    tar_size = tar_path.stat().st_size
+                    parts_info.append((tar_filename, file_list, tar_size))
 
-                if not self.create_and_upload_index(
-                    year, archive_type, tar_s3_dir, parts_info
-                ):
-                    results[archive_type] = False
-                    continue
+                    logger.info(f"  Converted {zip_info['filename']} -> {tar_filename}")
+                    logger.info(f"    Files: {len(file_list)}, Size: {format_size(tar_size)}")
 
-                results[archive_type] = True
-                logger.info(f"Successfully migrated {archive_type} for year {year}")
-                logger.info(f"  - Files: {len(file_list)}")
-                logger.info(f"  - Size: {format_size(tar_size)}")
+            if not all_success:
+                results[archive_type] = False
+                continue
+
+            # Create and upload index with all parts
+            if not self.create_and_upload_index(year, archive_type, tar_s3_dir, parts_info):
+                results[archive_type] = False
+                continue
+
+            results[archive_type] = True
+            total_files = sum(len(p[1]) for p in parts_info)
+            total_size = sum(p[2] for p in parts_info)
+            logger.info(f"\nSuccessfully migrated {archive_type} for year {year}")
+            logger.info(f"  - Parts: {len(parts_info)}")
+            logger.info(f"  - Total files: {total_files}")
+            logger.info(f"  - Total size: {format_size(total_size)}")
 
         return results
 
