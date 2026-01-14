@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def sync_latest_metadata_tar(s3_bucket, local_dir, force_refresh=True):
     """
-    Download the current year's metadata zip file from S3, or latest available.
+    Download the current year's metadata tar file from S3, or latest available.
     If force_refresh is True, always download a fresh copy.
     """
     local_dir = Path(local_dir)
@@ -33,14 +33,14 @@ def sync_latest_metadata_tar(s3_bucket, local_dir, force_refresh=True):
     # Check if current year metadata exists
     try:
         s3.head_object(Bucket=s3_bucket, Key=current_year_key)
-        latest_zip_key = current_year_key
+        latest_tar_key = current_year_key
         logger.info(f"Found current year ({current_year}) metadata")
     except Exception:
         # Fall back to finding the latest available year
         logger.info("Current year metadata not found, finding latest available...")
-        zips = []
+        tars = []
 
-        # Search for metadata zip files in the new structure
+        # Search for metadata tar files in the new structure
         paginator = s3.get_paginator("list_objects_v2")
         prefix = "metadata/tar/"
 
@@ -51,38 +51,38 @@ def sync_latest_metadata_tar(s3_bucket, local_dir, force_refresh=True):
             for obj in page["Contents"]:
                 key = obj["Key"]
                 # Extract year from path like metadata/tar/year=2025/metadata.tar
-                year_match = re.search(r"year=(\d{4})/metadata\.zip", key)
+                year_match = re.search(r"year=(\d{4})/metadata\.tar", key)
                 if year_match:
                     year = int(year_match.group(1))
-                    zips.append((key, year))
+                    tars.append((key, year))
 
-        if not zips:
-            raise Exception("No metadata zip files found")
+        if not tars:
+            raise Exception("No metadata tar files found in S3")
 
         # Sort by year descending and take the most recent
-        zips.sort(key=lambda x: x[1], reverse=True)
-        latest_zip_key = zips[0][0]
+        tars.sort(key=lambda x: x[1], reverse=True)
+        latest_tar_key = tars[0][0]
 
-    # Create year directory for the zip file
-    year_match = re.search(r"year=(\d{4})/", latest_zip_key)
+    # Create year directory for the tar file
+    year_match = re.search(r"year=(\d{4})/", latest_tar_key)
     if year_match:
         year = year_match.group(1)
         year_dir = local_dir / year
         year_dir.mkdir(parents=True, exist_ok=True)
         local_path = year_dir / "metadata.tar"
     else:
-        local_path = local_dir / Path(latest_zip_key).name
+        local_path = local_dir / Path(latest_tar_key).name
 
     # Force a fresh download if requested
     if force_refresh and local_path.exists():
-        logger.info("Removing cached metadata zip to force refresh...")
+        logger.info("Removing cached metadata tar to force refresh...")
         local_path.unlink()
 
     if not local_path.exists():
-        logger.info(f"Downloading {latest_zip_key} ...")
-        s3.download_file(s3_bucket, latest_zip_key, local_path)
+        logger.info(f"Downloading {latest_tar_key} ...")
+        s3.download_file(s3_bucket, latest_tar_key, str(local_path))
     else:
-        logger.info(f"Using cached metadata zip: {local_path}")
+        logger.info(f"Using cached metadata tar: {local_path}")
 
     return local_path
 
@@ -181,8 +181,8 @@ def get_latest_date_from_metadata(s3_bucket, force_check_files=False):
     # Fall back to the original method - parsing individual files
     logger.info("Falling back to parsing individual files for decision dates...")
     local_dir = Path("./local_sc_judgments_data")
-    latest_zip = sync_latest_metadata_tar(s3_bucket, local_dir)
-    return find_latest_decision_date_in_tar(latest_zip)
+    latest_tar = sync_latest_metadata_tar(s3_bucket, local_dir)
+    return find_latest_decision_date_in_tar(latest_tar)
 
 
 def run_downloader(start_date, end_date, archive_manager=None):

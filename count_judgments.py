@@ -45,17 +45,17 @@ def count_judgments():
         return
 
     # Find all tar files and their index files
-    zip_files = list(packages_dir.glob("*.tar"))
+    tar_files = list(packages_dir.glob("*.tar"))
     index_files = list(packages_dir.glob("*.index.json"))
 
-    logger.info(f"Found {len(zip_files)} tar files and {len(index_files)} index files")
+    logger.info(f"Found {len(tar_files)} tar files and {len(index_files)} index files")
 
     # Count by year and type
     tar_counts = defaultdict(lambda: defaultdict(int))
     index_counts = defaultdict(lambda: defaultdict(int))
 
-    # Count files in zip archives
-    for tar_path in zip_files:
+    # Count files in tar archives
+    for tar_path in tar_files:
         # Extract year and type from filename (e.g., sc-judgments-2023-english.tar)
         parts = tar_path.stem.split("-")
         if len(parts) >= 4:
@@ -63,7 +63,7 @@ def count_judgments():
             archive_type = parts[3]
             count = count_tar_files(tar_path)
             tar_counts[year][archive_type] = count
-            logger.info(f"Zip {tar_path.name}: {count} files")
+            logger.info(f"Tar {tar_path.name}: {count} files")
 
     # Count files in index files
     for index_path in index_files:

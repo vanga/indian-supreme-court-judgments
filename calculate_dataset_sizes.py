@@ -56,10 +56,8 @@ def get_dataset_sizes():
                     response = s3.get_object(Bucket=BUCKET, Key=key)
                     index_data = json.loads(response["Body"].read().decode("utf-8"))
 
-                    # Get total_size from index (V2 format) or fall back to zip_size (old format)
-                    total_size = index_data.get(
-                        "total_size", index_data.get("zip_size", 0)
-                    )
+                    # Get total_size from index (V2 format)
+                    total_size = index_data.get("total_size", 0)
                     if total_size > 0:
                         year_sizes[year] += total_size
                         logger.info(

@@ -142,12 +142,8 @@ class IndexFileV2:
             year=data.get("year", 0),
             archive_type=data.get("archive_type", ""),
             file_count=data.get("file_count", 0),
-            total_size=data.get(
-                "total_size", data.get("tar_size", data.get("zip_size", 0))
-            ),  # Support legacy field
-            total_size_human=data.get(
-                "total_size_human", data.get("tar_size_human", data.get("zip_size_human", "0 B"))
-            ),
+            total_size=data.get("total_size", 0),
+            total_size_human=data.get("total_size_human", "0 B"),
             created_at=data.get("created_at", ""),
             updated_at=data.get("updated_at", ""),
             parts=parts,
