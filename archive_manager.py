@@ -1,17 +1,18 @@
 """
 S3 Archive Manager for Supreme Court Judgments
-Handles ZIP/TAR archive creation, indexing, and S3 uploads with size-based partitioning.
+Handles TAR archive creation, indexing, and S3 uploads with size-based partitioning.
 
 Similar to the indian-high-court-judgments project, this module supports:
 - Multiple archive parts when size exceeds MAX_ARCHIVE_SIZE
 - IndexFileV2 format with parts array
-- Both ZIP and TAR archive formats
+- TAR archive format (uncompressed)
 """
 
+import io
 import json
 import logging
+import tarfile
 import threading
-import zipfile
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -63,11 +64,11 @@ def generate_part_name(now_iso: str) -> str:
 @dataclass
 class IndexPart:
     """
-    Represents a single archive part (tar/zip file).
+    Represents a single archive part (tar file).
     Each part corresponds to one archive created during a run.
     """
 
-    name: str  # Archive filename, e.g., 'part-20250101T120000Z.zip'
+    name: str  # Archive filename, e.g., 'part-20250101T120000Z.tar'
     files: List[str] = field(default_factory=list)  # Files contained in this part
     file_count: int = 0
     size: int = 0  # Part size in bytes
@@ -142,10 +143,10 @@ class IndexFileV2:
             archive_type=data.get("archive_type", ""),
             file_count=data.get("file_count", 0),
             total_size=data.get(
-                "total_size", data.get("zip_size", 0)
+                "total_size", data.get("tar_size", data.get("zip_size", 0))
             ),  # Support legacy field
             total_size_human=data.get(
-                "total_size_human", data.get("zip_size_human", "0 B")
+                "total_size_human", data.get("tar_size_human", data.get("zip_size_human", "0 B"))
             ),
             created_at=data.get("created_at", ""),
             updated_at=data.get("updated_at", ""),
@@ -189,13 +190,13 @@ class IndexFileV2:
 
 class S3ArchiveManager:
     """
-    Manages ZIP/TAR archives for Supreme Court judgments with S3 sync.
+    Manages TAR archives for Supreme Court judgments with S3 sync.
     Supports both immediate upload mode and batch upload mode.
 
     Key features:
     - Size-based partitioning: creates new archive parts when MAX_ARCHIVE_SIZE is exceeded
     - IndexFileV2 format with parts array for tracking multiple archives
-    - Support for both ZIP and TAR formats
+    - TAR archive format (uncompressed for faster access)
     - Thread-safe operations
     """
 
@@ -213,14 +214,10 @@ class S3ArchiveManager:
         self.s3 = boto3.client("s3")
         self.max_archive_size = max_archive_size
 
-        # Archive tracking
-        self.archives: Dict[
-            tuple, zipfile.ZipFile
-        ] = {}  # (year, archive_type) -> ZipFile
+        # Archive tracking - stores open tar file handles
+        self.archives: Dict[tuple, tarfile.TarFile] = {}  # (year, archive_type) -> TarFile
         self.archive_paths: Dict[tuple, Path] = {}  # (year, archive_type) -> local path
-        self.indexes: Dict[
-            tuple, IndexFileV2
-        ] = {}  # (year, archive_type) -> IndexFileV2
+        self.indexes: Dict[tuple, IndexFileV2] = {}  # (year, archive_type) -> IndexFileV2
         self.current_part_files: Dict[tuple, List[str]] = defaultdict(
             list
         )  # Files in current part
@@ -264,16 +261,14 @@ class S3ArchiveManager:
     def _get_s3_dir(self, year: int, archive_type: str) -> str:
         """Get S3 directory path for an archive type"""
         if archive_type == "metadata":
-            return f"metadata/zip/year={year}/"
+            return f"metadata/tar/year={year}/"
         else:
             # Separate english and regional into their own subfolders
-            return f"data/zip/year={year}/{archive_type}/"
+            return f"data/tar/year={year}/{archive_type}/"
 
     def _get_archive_extension(self, archive_type: str) -> str:
         """Get file extension for archive type"""
-        # For now, all archives use ZIP format
-        # This can be extended to support TAR format
-        return ".zip"
+        return ".tar"
 
     def _load_index_from_s3(self, year: int, archive_type: str) -> IndexFileV2:
         """Load index file from S3, returning empty index if not found"""
@@ -324,7 +319,7 @@ class S3ArchiveManager:
     def _download_main_archive_if_exists(
         self, year: int, archive_type: str
     ) -> Optional[Path]:
-        """Download the main archive (e.g., english.zip) if it exists in S3"""
+        """Download the main archive (e.g., english.tar) if it exists in S3"""
         s3_dir = self._get_s3_dir(year, archive_type)
         ext = self._get_archive_extension(archive_type)
         archive_name = f"{archive_type}{ext}"
@@ -345,7 +340,7 @@ class S3ArchiveManager:
             raise
 
     def get_archive(self, year, archive_type):
-        """Get or create a ZIP archive for a specific year and type.
+        """Get or create a TAR archive for a specific year and type.
 
         This method manages archive parts. If the current archive exceeds MAX_ARCHIVE_SIZE,
         it will be finalized and a new part will be created.
@@ -372,7 +367,7 @@ class S3ArchiveManager:
             index = self.indexes[key]
 
             # Determine if we should try to work with the main archive
-            # Only work with main archive if index shows it exists (has a part named {archive_type}.zip)
+            # Only work with main archive if index shows it exists (has a part named {archive_type}.tar)
             main_archive_name = (
                 f"{archive_type}{self._get_archive_extension(archive_type)}"
             )
@@ -397,7 +392,7 @@ class S3ArchiveManager:
                     return self._create_new_part(year, archive_type, is_first=False)
 
                 # Open existing archive for appending
-                archive = zipfile.ZipFile(local_path, "a", zipfile.ZIP_DEFLATED)
+                archive = tarfile.open(local_path, "a")
                 self.archives[key] = archive
                 self.archive_paths[key] = local_path
 
@@ -405,7 +400,7 @@ class S3ArchiveManager:
                 self.current_part_size[key] = existing_size
 
                 # Load existing files from the archive so we have complete file list
-                self.current_part_files[key] = archive.namelist()
+                self.current_part_files[key] = list(archive.getnames())
             else:
                 # Create new archive
                 # is_first=True only if index has no parts at all
@@ -416,7 +411,7 @@ class S3ArchiveManager:
 
     def _create_new_part(
         self, year: int, archive_type: str, is_first: bool = False
-    ) -> zipfile.ZipFile:
+    ) -> tarfile.TarFile:
         """Create a new archive part
 
         Args:
@@ -457,7 +452,7 @@ class S3ArchiveManager:
 
         local_path = year_dir / archive_name
 
-        archive = zipfile.ZipFile(local_path, "w", zipfile.ZIP_DEFLATED)
+        archive = tarfile.open(local_path, "w")
         self.archives[key] = archive
         self.archive_paths[key] = local_path
         self.current_part_files[key] = []
@@ -590,17 +585,17 @@ class S3ArchiveManager:
 
             archive = self.get_archive(year, archive_type)
 
-            # Write the file
-            archive.writestr(filename, content)
+            # Prepare the data
+            data = content if isinstance(content, bytes) else content.encode("utf-8")
+
+            # Create TarInfo and add file
+            info = tarfile.TarInfo(name=filename)
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
 
             # Track this file
             self.current_part_files[key].append(filename)
-            content_size = (
-                len(content)
-                if isinstance(content, bytes)
-                else len(content.encode("utf-8"))
-            )
-            self.current_part_size[key] += content_size
+            self.current_part_size[key] += len(data)
 
             self.modified_archives.add(key)
 

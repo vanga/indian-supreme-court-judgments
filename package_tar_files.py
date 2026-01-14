@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Script to package downloaded individual files into zip archives
+Script to package downloaded individual files into tar archives
 Run this after downloading to create compressed archives for distribution
 """
 
-import zipfile
+import io
 import json
+import tarfile
 from pathlib import Path
 import logging
 import argparse
@@ -15,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class ZipPackager:
+class TarPackager:
     def __init__(self, data_dir="./sc_data", packages_dir="./packages"):
         self.data_dir = Path(data_dir)
         self.packages_dir = Path(packages_dir)
@@ -37,9 +38,9 @@ class ZipPackager:
         return sorted(years)
 
     def package_year_archive(self, year, archive_type):
-        """Package files for a specific year and archive type into zip"""
+        """Package files for a specific year and archive type into tar"""
         source_dir = self.data_dir / archive_type / str(year)
-        zip_path = self.packages_dir / f"sc-judgments-{year}-{archive_type}.zip"
+        tar_path = self.packages_dir / f"sc-judgments-{year}-{archive_type}.tar"
         index_path = (
             self.packages_dir / f"sc-judgments-{year}-{archive_type}.index.json"
         )
@@ -54,9 +55,9 @@ class ZipPackager:
             logger.debug(f"No files to package in {source_dir}")
             return False
 
-        logger.debug(f"Packaging {source_dir} -> {zip_path}")
+        logger.debug(f"Packaging {source_dir} -> {tar_path}")
 
-        # Get existing files from index.json (much faster than reading zip)
+        # Get existing files from index.json (much faster than reading tar)
         existing_files = set()
         if index_path.exists():
             try:
@@ -76,27 +77,27 @@ class ZipPackager:
                     logger.debug(f"Skipping duplicate file: {file_path.name}")
 
         if not new_files_to_add:
-            logger.debug(f"No new files to add to {zip_path}")
+            logger.debug(f"No new files to add to {tar_path}")
             return False
 
-        # Add files to zip (append mode for existing, write mode for new)
-        if zip_path.exists():
+        # Add files to tar (append mode for existing, write mode for new)
+        if tar_path.exists():
             logger.info(
-                f"Appending {len(new_files_to_add)} new files to existing zip: {zip_path}"
+                f"Appending {len(new_files_to_add)} new files to existing tar: {tar_path}"
             )
             mode = "a"
         else:
-            logger.info(f"Creating new zip file: {zip_path}")
+            logger.info(f"Creating new tar file: {tar_path}")
             mode = "w"
 
         try:
-            with zipfile.ZipFile(zip_path, mode, zipfile.ZIP_DEFLATED) as zipf:
+            with tarfile.open(tar_path, mode) as tf:
                 for file_path in new_files_to_add:
                     if file_path.is_file():
                         # Add file with just the filename (not full path)
-                        zipf.write(file_path, arcname=file_path.name)
+                        tf.add(file_path, arcname=file_path.name)
         except Exception as e:
-            logger.error(f"Error adding files to zip, {zip_path}: {e}")
+            logger.error(f"Error adding files to tar, {tar_path}: {e}")
             return False
 
         # Update index file with ALL files (existing + new)
@@ -109,7 +110,7 @@ class ZipPackager:
             "archive_type": archive_type,
             "year": year,
             "created_at": datetime.now().isoformat(),
-            "zip_file": f"sc-judgments-{year}-{archive_type}.zip",
+            "tar_file": f"sc-judgments-{year}-{archive_type}.tar",
             "source_directory": f"sc_data/{archive_type}/{year}/",
             "file_count": len(file_list),
             "files": file_list,
@@ -118,11 +119,11 @@ class ZipPackager:
         with open(index_path, "w") as f:
             json.dump(index_data, f, indent=2)
 
-        logger.info(f"Updated {zip_path} - now contains {len(file_list)} total files")
+        logger.info(f"Updated {tar_path} - now contains {len(file_list)} total files")
         return True
 
     def package_all(self, specific_year=None):
-        """Package all available data into zip files"""
+        """Package all available data into tar files"""
         years = self.get_years_to_process(specific_year)
 
         if not years:
@@ -142,27 +143,27 @@ class ZipPackager:
     def cleanup_individual_files(self, specific_year=None):
         """
         Clean up individual files after packaging (optional)
-        Only removes files that are successfully packaged in zip files
+        Only removes files that are successfully packaged in tar files
         """
         years = self.get_years_to_process(specific_year)
 
         for year in years:
             for archive_type in ["english", "regional", "metadata"]:
                 source_dir = self.data_dir / archive_type / str(year)
-                zip_path = self.packages_dir / f"sc-judgments-{year}-{archive_type}.zip"
+                tar_path = self.packages_dir / f"sc-judgments-{year}-{archive_type}.tar"
 
-                if not source_dir.exists() or not zip_path.exists():
+                if not source_dir.exists() or not tar_path.exists():
                     continue
 
-                # Verify zip file integrity by listing contents
+                # Verify tar file integrity by listing contents
                 try:
-                    with zipfile.ZipFile(zip_path, "r") as zipf:
-                        zip_files = set(zipf.namelist())
+                    with tarfile.open(tar_path, "r") as tf:
+                        tar_files = set(tf.getnames())
 
-                    # Only remove files that are in the zip
+                    # Only remove files that are in the tar
                     files_to_remove = []
                     for file_path in source_dir.glob("*"):
-                        if file_path.is_file() and file_path.name in zip_files:
+                        if file_path.is_file() and file_path.name in tar_files:
                             files_to_remove.append(file_path)
 
                     if files_to_remove:
@@ -178,12 +179,12 @@ class ZipPackager:
                             source_dir.rmdir()
 
                 except Exception as e:
-                    logger.error(f"Error verifying zip file {zip_path}: {e}")
+                    logger.error(f"Error verifying tar file {tar_path}: {e}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Package downloaded files into zip archives"
+        description="Package downloaded files into tar archives"
     )
     parser.add_argument("--year", type=int, help="Package specific year only")
     parser.add_argument(
@@ -194,7 +195,7 @@ def main():
 
     args = parser.parse_args()
 
-    packager = ZipPackager()
+    packager = TarPackager()
 
     # Package files
     packager.package_all(args.year)

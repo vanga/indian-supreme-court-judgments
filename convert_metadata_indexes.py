@@ -111,7 +111,7 @@ class MetadataIndexConverter:
 
     def list_metadata_years(self) -> List[int]:
         """List all years that have metadata archives"""
-        prefix = "metadata/zip/year="
+        prefix = "metadata/tar/year="
         years = set()
 
         paginator = self.s3.get_paginator("list_objects_v2")
@@ -121,7 +121,7 @@ class MetadataIndexConverter:
 
             for obj in page["Contents"]:
                 key = obj["Key"]
-                # Extract year from path like metadata/zip/year=2023/...
+                # Extract year from path like metadata/tar/year=2023/...
                 if key.startswith(prefix) and "/" in key[len(prefix) :]:
                     year_part = key[len(prefix) :].split("/")[0]
                     try:
@@ -133,7 +133,7 @@ class MetadataIndexConverter:
 
     def get_metadata_index(self, year: int) -> dict:
         """Download metadata index.json for a given year"""
-        index_key = f"metadata/zip/year={year}/metadata.index.json"
+        index_key = f"metadata/tar/year={year}/metadata.index.json"
 
         try:
             response = self.s3.get_object(Bucket=self.bucket_name, Key=index_key)
@@ -153,27 +153,27 @@ class MetadataIndexConverter:
         """Convert old index format to V2 with parts array"""
         now = ist_now_iso()
 
-        # Get metadata.zip size from S3
-        metadata_zip_key = f"metadata/zip/year={year}/metadata.zip"
+        # Get metadata.tar size from S3
+        metadata_tar_key = f"metadata/tar/year={year}/metadata.tar"
         try:
             response = self.s3.head_object(
-                Bucket=self.bucket_name, Key=metadata_zip_key
+                Bucket=self.bucket_name, Key=metadata_tar_key
             )
-            zip_size = response["ContentLength"]
+            tar_size = response["ContentLength"]
         except Exception as e:
             logger.warning(
-                f"Could not get metadata.zip size for year {year}, using index size: {e}"
+                f"Could not get metadata.tar size for year {year}, using index size: {e}"
             )
-            zip_size = old_index.get("zip_size", old_index.get("total_size", 0))
+            tar_size = old_index.get("tar_size", old_index.get("total_size", 0))
 
         # Create single part with all files
         files = old_index.get("files", [])
         part = IndexPart(
-            name="metadata.zip",
+            name="metadata.tar",
             files=files,
             file_count=len(files),
-            size=zip_size,
-            size_human=format_size(zip_size),
+            size=tar_size,
+            size_human=format_size(tar_size),
             created_at=old_index.get("created_at", now),
         )
 
@@ -182,8 +182,8 @@ class MetadataIndexConverter:
             year=year,
             archive_type="metadata",
             file_count=len(files),
-            total_size=zip_size,
-            total_size_human=format_size(zip_size),
+            total_size=tar_size,
+            total_size_human=format_size(tar_size),
             created_at=old_index.get("created_at", now),
             updated_at=now,
             parts=[part],
@@ -193,7 +193,7 @@ class MetadataIndexConverter:
 
     def upload_index(self, year: int, index: IndexFileV2):
         """Upload the converted index back to S3"""
-        index_key = f"metadata/zip/year={year}/metadata.index.json"
+        index_key = f"metadata/tar/year={year}/metadata.index.json"
 
         if self.dry_run:
             logger.info(f"[DRY RUN] Would upload converted index to: {index_key}")

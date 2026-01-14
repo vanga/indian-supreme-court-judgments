@@ -3,7 +3,7 @@
 Verification Script: Compare actual S3 sizes vs index reported sizes
 
 This script:
-1. Lists actual zip files in each directory and sums their sizes
+1. Lists actual tar files in each directory and sums their sizes
 2. Reads index files and gets reported sizes
 3. Compares them to find discrepancies
 """
@@ -35,7 +35,7 @@ def bytes_to_human(size_bytes):
 def verify_directory(s3, prefix, year, archive_type):
     """
     Verify a single directory by comparing:
-    - Actual zip file sizes in S3
+    - Actual tar file sizes in S3
     - Index file reported sizes
     """
     result = {
@@ -59,7 +59,7 @@ def verify_directory(s3, prefix, year, archive_type):
             size = obj["Size"]
             filename = key.split("/")[-1]
 
-            if key.endswith(".zip"):
+            if key.endswith(".tar"):
                 result["actual_files"].append({"name": filename, "size": size})
                 result["actual_size"] += size
             elif key.endswith(".index.json"):
@@ -70,7 +70,7 @@ def verify_directory(s3, prefix, year, archive_type):
 
                     # Get total_size from index
                     result["index_size"] = index_data.get(
-                        "total_size", index_data.get("zip_size", 0)
+                        "total_size", index_data.get("tar_size", 0)
                     )
 
                     # Get files from parts (V2 format)
@@ -150,9 +150,9 @@ def main():
     total_actual = 0
     total_index = 0
 
-    # Get all years from data/zip/
+    # Get all years from data/tar/
     years = set()
-    for page in paginator.paginate(Bucket=BUCKET, Prefix="data/zip/", Delimiter="/"):
+    for page in paginator.paginate(Bucket=BUCKET, Prefix="data/tar/", Delimiter="/"):
         if "CommonPrefixes" in page:
             for cp in page["CommonPrefixes"]:
                 match = re.search(r"year=(\d{4})", cp["Prefix"])
@@ -161,7 +161,7 @@ def main():
 
     for year in sorted(years):
         for archive_type in ["english", "regional"]:
-            prefix = f"data/zip/year={year}/{archive_type}/"
+            prefix = f"data/tar/year={year}/{archive_type}/"
             result = verify_directory(s3, prefix, year, archive_type)
             results.append(result)
             total_actual += result["actual_size"]
@@ -192,7 +192,7 @@ def main():
 
     print("\n3. TOTALS:")
     print("-" * 60)
-    print(f"   Total actual ZIP sizes: {bytes_to_human(total_actual)}")
+    print(f"   Total actual TAR sizes: {bytes_to_human(total_actual)}")
     print(f"   Total from index files: {bytes_to_human(total_index)}")
     print(f"   Difference: {bytes_to_human(abs(total_actual - total_index))}")
 

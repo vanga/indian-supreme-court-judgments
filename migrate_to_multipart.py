@@ -7,7 +7,7 @@ This script:
 2. Identifies archives larger than 1GB
 3. Downloads and extracts them
 4. Splits files into 1GB parts with timestamped names
-5. Uploads to new structure: data/zip/year=YYYY/english/ or regional/
+5. Uploads to new structure: data/tar/year=YYYY/english/ or regional/
 6. Creates/updates index files with parts array
 
 Usage:
@@ -17,10 +17,11 @@ Usage:
 """
 
 import argparse
+import io
 import json
 import logging
+import tarfile
 import tempfile
-import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -144,11 +145,11 @@ class ArchiveMigrator:
         try:
             paginator = self.s3.get_paginator("list_objects_v2")
             for page in paginator.paginate(
-                Bucket=self.bucket_name, Prefix="data/zip/", Delimiter="/"
+                Bucket=self.bucket_name, Prefix="data/tar/", Delimiter="/"
             ):
                 if "CommonPrefixes" in page:
                     for prefix in page["CommonPrefixes"]:
-                        # Extract year from 'data/zip/year=YYYY/'
+                        # Extract year from 'data/tar/year=YYYY/'
                         parts = prefix["Prefix"].split("/")
                         for part in parts:
                             if part.startswith("year="):
@@ -164,19 +165,19 @@ class ArchiveMigrator:
         archives = {}
 
         for archive_type in ["english", "regional", "metadata"]:
-            archive_name = f"{archive_type}.zip"
+            archive_name = f"{archive_type}.tar"
 
             # Determine old and new structure paths
             if archive_type == "metadata":
                 # Metadata only has one location
-                old_s3_key = f"metadata/zip/year={year}/{archive_name}"
+                old_s3_key = f"metadata/tar/year={year}/{archive_name}"
                 new_s3_key = old_s3_key  # Same location
-                new_s3_dir = f"metadata/zip/year={year}/"
+                new_s3_dir = f"metadata/tar/year={year}/"
             else:
                 # English/Regional: check OLD flat structure first, then NEW subfolder structure
-                old_s3_key = f"data/zip/year={year}/{archive_name}"
-                new_s3_key = f"data/zip/year={year}/{archive_type}/{archive_name}"
-                new_s3_dir = f"data/zip/year={year}/{archive_type}/"
+                old_s3_key = f"data/tar/year={year}/{archive_name}"
+                new_s3_key = f"data/tar/year={year}/{archive_type}/{archive_name}"
+                new_s3_dir = f"data/tar/year={year}/{archive_type}/"
 
             # Try OLD structure first (for migration)
             s3_key = None
@@ -191,7 +192,7 @@ class ArchiveMigrator:
                 s3_dir = (
                     new_s3_dir
                     if archive_type != "metadata"
-                    else f"metadata/zip/year={year}/"
+                    else f"metadata/tar/year={year}/"
                 )
                 logger.info(
                     f"Found {archive_type}.zip in OLD structure: {format_size(size)}"
@@ -285,13 +286,13 @@ class ArchiveMigrator:
             extract_dir.mkdir(parents=True, exist_ok=True)
 
             files = []
-            with zipfile.ZipFile(archive_path, "r") as zf:
-                members = zf.namelist()
+            with tarfile.open(archive_path, "r") as tf:
+                members = tf.getmembers()
 
                 with tqdm(total=len(members), desc="Extracting files") as pbar:
                     for member in members:
-                        zf.extract(member, extract_dir)
-                        files.append(member)
+                        tf.extract(member, extract_dir)
+                        files.append(member.name)
                         pbar.update(1)
 
             logger.info(f"Extracted {len(files)} files")
@@ -350,16 +351,16 @@ class ArchiveMigrator:
     def create_archive_part(
         self, extract_dir: Path, files: List[str], output_path: Path
     ) -> int:
-        """Create a zip archive from files and return its size"""
+        """Create a tar archive from files and return its size"""
         try:
             logger.info(f"Creating archive part: {output_path.name}")
 
-            with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            with tarfile.open(output_path, "w") as tf:
                 with tqdm(total=len(files), desc="Adding files") as pbar:
                     for filename in files:
                         file_path = extract_dir / filename
                         if file_path.exists():
-                            zf.write(file_path, arcname=filename)
+                            tf.add(file_path, arcname=filename)
                         pbar.update(1)
 
             size = output_path.stat().st_size
@@ -421,7 +422,7 @@ class ArchiveMigrator:
         if archive_type == "metadata":
             return True  # Metadata uses same location, no old index to delete
 
-        old_index_key = f"data/zip/year={year}/{archive_type}.index.json"
+        old_index_key = f"data/tar/year={year}/{archive_type}.index.json"
 
         try:
             # Check if old index exists
@@ -559,7 +560,7 @@ class ArchiveMigrator:
                 part_files, estimated_size = parts[0]
 
                 # First part uses normal name: {archive_type}.zip
-                part_name = f"{archive_type}.zip"
+                part_name = f"{archive_type}.tar"
 
                 # Create archive part
                 part_path = temp_path / part_name
@@ -599,11 +600,11 @@ class ArchiveMigrator:
             for idx, (part_files, estimated_size) in enumerate(parts):
                 # First part uses normal name, subsequent parts use part-{ist-timestamp}.zip
                 if idx == 0:
-                    part_name = f"{archive_type}.zip"
+                    part_name = f"{archive_type}.tar"
                 else:
                     now_iso = ist_now_iso()
                     ts = datetime.fromisoformat(now_iso).strftime("%Y%m%dT%H%M%S")
-                    part_name = f"part-{ts}.zip"
+                    part_name = f"part-{ts}.tar"
 
                 # Create archive part
                 part_path = temp_path / part_name
@@ -693,8 +694,8 @@ class ArchiveMigrator:
                     if self.download_archive(archive_info["s3_key"], archive_path):
                         try:
                             # List files for index
-                            with zipfile.ZipFile(archive_path, "r") as zf:
-                                files = zf.namelist()
+                            with tarfile.open(archive_path, "r") as tf:
+                                files = tf.getnames()
 
                             # Upload to new location
                             logger.info(
@@ -717,7 +718,7 @@ class ArchiveMigrator:
                                 )
 
                             # Create/update index with the archive as a single part
-                            part_name = f"{archive_type}.zip"
+                            part_name = f"{archive_type}.tar"
                             parts_info = [(part_name, files, archive_info["size"])]
 
                             if self.create_and_upload_index(
@@ -756,7 +757,7 @@ class ArchiveMigrator:
                                     files = zf.namelist()
 
                                 # Create V2 index with single part
-                                part_name = f"{archive_type}.zip"
+                                part_name = f"{archive_type}.tar"
                                 parts_info = [(part_name, files, archive_info["size"])]
 
                                 if self.create_and_upload_index(
@@ -785,11 +786,11 @@ class ArchiveMigrator:
 
                     if self.download_archive(archive_info["s3_key"], archive_path):
                         try:
-                            with zipfile.ZipFile(archive_path, "r") as zf:
-                                files = zf.namelist()
+                            with tarfile.open(archive_path, "r") as tf:
+                                files = tf.getnames()
 
                             # Create index with the existing archive as a single part
-                            part_name = f"{archive_type}.zip"
+                            part_name = f"{archive_type}.tar"
                             parts_info = [(part_name, files, archive_info["size"])]
 
                             if self.create_and_upload_index(

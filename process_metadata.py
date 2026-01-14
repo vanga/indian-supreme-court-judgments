@@ -3,8 +3,8 @@ import json
 import logging
 import os
 import re
+import tarfile
 import tempfile
-import zipfile
 from typing import Dict, Optional
 
 import boto3
@@ -80,23 +80,24 @@ class SupremeCourtS3Processor:
             logger.error(f"Error reading {s3_key}: {e}")
             return None
 
-    def process_s3_zip(self, s3_key, year):
-        """Process a ZIP file from S3 with minimal local storage."""
+    def process_s3_tar(self, s3_key, year):
+        """Process a TAR file from S3 with minimal local storage."""
         record_buffer = []
         record_count = 0
 
-        # We need to download the ZIP temporarily because zipfile needs random access
-        with tempfile.NamedTemporaryFile(suffix=".zip", delete=True) as tmp_zip:
+        # We need to download the TAR temporarily because tarfile needs random access
+        with tempfile.NamedTemporaryFile(suffix=".tar", delete=True) as tmp_tar:
             try:
-                # Download ZIP to temp file
-                self.s3.download_file(self.s3_bucket, s3_key, tmp_zip.name)
+                # Download TAR to temp file
+                self.s3.download_file(self.s3_bucket, s3_key, tmp_tar.name)
 
-                # Process ZIP contents in memory
-                with zipfile.ZipFile(tmp_zip.name, "r") as zip_ref:
-                    for file_info in zip_ref.infolist():
-                        if file_info.filename.endswith(".json"):
+                # Process TAR contents in memory
+                with tarfile.open(tmp_tar.name, "r") as tar_ref:
+                    for member in tar_ref.getmembers():
+                        if member.name.endswith(".json"):
                             # Extract JSON data directly to memory
-                            with zip_ref.open(file_info) as json_file:
+                            json_file = tar_ref.extractfile(member)
+                            if json_file:
                                 content = json_file.read().decode("utf-8")
                                 metadata = json.loads(content)
 
@@ -120,7 +121,7 @@ class SupremeCourtS3Processor:
                                         record_buffer = []
 
             except Exception as e:
-                logger.error(f"Error processing ZIP file {s3_key}: {e}")
+                logger.error(f"Error processing TAR file {s3_key}: {e}")
 
         # Write any remaining records
         if record_buffer:
@@ -150,44 +151,44 @@ class SupremeCourtS3Processor:
         return 0
 
     def _extract_year_from_filename(self, filename):
-        """Extract the year from a filename like 'sc-judgments-2025-metadata.zip'."""
+        """Extract the year from a filename like 'sc-judgments-2025-metadata.tar'."""
         match = re.search(r"(\d{4})", filename)
         if match:
             return match.group(1)
         return "unknown"
 
     def get_all_s3_sources(self):
-        """Get all source files (ZIP archives and JSON files) from S3."""
-        # Check for ZIP archives in the new path structure first
-        zip_files = []
+        """Get all source files (TAR archives and JSON files) from S3."""
+        # Check for TAR archives in the new path structure first
+        tar_files = []
 
-        # Look for metadata zip files in metadata/zip/year=YYYY/ directory structure
-        for s3_key in self.list_s3_objects("metadata/zip/"):
-            if s3_key.endswith("metadata.zip"):
-                # Extract year from path like metadata/zip/year=2023/metadata.zip
+        # Look for metadata tar files in metadata/tar/year=YYYY/ directory structure
+        for s3_key in self.list_s3_objects("metadata/tar/"):
+            if s3_key.endswith("metadata.tar"):
+                # Extract year from path like metadata/tar/year=2023/metadata.tar
                 year_match = re.search(r"year=(\d{4})/", s3_key)
                 if year_match:
                     year = year_match.group(1)
                     # Skip if we're only processing specific years and this isn't one of them
                     if self.years_to_process and year not in self.years_to_process:
                         continue
-                    zip_files.append((s3_key, year))
+                    tar_files.append((s3_key, year))
 
         # Also look for files with the old naming pattern as a fallback
-        if not zip_files:
+        if not tar_files:
             for s3_key in self.list_s3_objects():
-                if s3_key.endswith("-metadata.zip") and "sc-judgments" in s3_key:
+                if s3_key.endswith("-metadata.tar") and "sc-judgments" in s3_key:
                     filename = os.path.basename(s3_key)
                     year = self._extract_year_from_filename(filename)
                     # Skip if we're only processing specific years and this isn't one of them
                     if self.years_to_process and year not in self.years_to_process:
                         continue
-                    zip_files.append((s3_key, year))
+                    tar_files.append((s3_key, year))
 
-        if zip_files:
-            return zip_files
+        if tar_files:
+            return tar_files
 
-        # If no ZIP files found at all, look for individual JSON files
+        # If no TAR files found at all, look for individual JSON files
         json_files = []
         for s3_key in self.list_s3_objects():
             if s3_key.endswith(".json"):
@@ -588,8 +589,8 @@ class SupremeCourtS3Processor:
                         continue
 
                     # Choose processing method based on file type
-                    if s3_key.endswith(".zip"):
-                        future = executor.submit(self.process_s3_zip, s3_key, year)
+                    if s3_key.endswith(".tar"):
+                        future = executor.submit(self.process_s3_tar, s3_key, year)
                     else:
                         future = executor.submit(self.process_s3_json, s3_key, year)
                     futures[future] = (year, s3_key)
@@ -659,8 +660,8 @@ class SupremeCourtS3Processor:
             for year, year_sources in sources_by_year.items():
                 for s3_key in year_sources:
                     # Choose processing method based on file type
-                    if s3_key.endswith(".zip"):
-                        future = executor.submit(self.process_s3_zip, s3_key, year)
+                    if s3_key.endswith(".tar"):
+                        future = executor.submit(self.process_s3_tar, s3_key, year)
                     else:
                         future = executor.submit(self.process_s3_json, s3_key, year)
                     futures[future] = (year, s3_key)

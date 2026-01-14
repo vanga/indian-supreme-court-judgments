@@ -6,7 +6,7 @@ Handles syncing with S3 and incremental downloads
 import json
 import logging
 import re
-import zipfile
+import tarfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -17,7 +17,7 @@ from botocore.client import Config
 logger = logging.getLogger(__name__)
 
 
-def sync_latest_metadata_zip(s3_bucket, local_dir, force_refresh=True):
+def sync_latest_metadata_tar(s3_bucket, local_dir, force_refresh=True):
     """
     Download the current year's metadata zip file from S3, or latest available.
     If force_refresh is True, always download a fresh copy.
@@ -28,7 +28,7 @@ def sync_latest_metadata_zip(s3_bucket, local_dir, force_refresh=True):
 
     # First try to get current year's metadata
     current_year = datetime.now().year
-    current_year_key = f"metadata/zip/year={current_year}/metadata.zip"
+    current_year_key = f"metadata/tar/year={current_year}/metadata.tar"
 
     # Check if current year metadata exists
     try:
@@ -42,7 +42,7 @@ def sync_latest_metadata_zip(s3_bucket, local_dir, force_refresh=True):
 
         # Search for metadata zip files in the new structure
         paginator = s3.get_paginator("list_objects_v2")
-        prefix = "metadata/zip/"
+        prefix = "metadata/tar/"
 
         for page in paginator.paginate(Bucket=s3_bucket, Prefix=prefix):
             if "Contents" not in page:
@@ -50,7 +50,7 @@ def sync_latest_metadata_zip(s3_bucket, local_dir, force_refresh=True):
 
             for obj in page["Contents"]:
                 key = obj["Key"]
-                # Extract year from path like metadata/zip/year=2025/metadata.zip
+                # Extract year from path like metadata/tar/year=2025/metadata.tar
                 year_match = re.search(r"year=(\d{4})/metadata\.zip", key)
                 if year_match:
                     year = int(year_match.group(1))
@@ -69,7 +69,7 @@ def sync_latest_metadata_zip(s3_bucket, local_dir, force_refresh=True):
         year = year_match.group(1)
         year_dir = local_dir / year
         year_dir.mkdir(parents=True, exist_ok=True)
-        local_path = year_dir / "metadata.zip"
+        local_path = year_dir / "metadata.tar"
     else:
         local_path = local_dir / Path(latest_zip_key).name
 
@@ -105,14 +105,15 @@ def extract_decision_date_from_json(json_obj):
     return None
 
 
-def find_latest_decision_date_in_zip(zip_path):
-    """Find the latest decision date in a metadata zip file"""
+def find_latest_decision_date_in_tar(tar_path):
+    """Find the latest decision date in a metadata tar file"""
     latest_date = None
-    with zipfile.ZipFile(zip_path, "r") as z:
-        for name in z.namelist():
-            if not name.endswith(".json"):
+    with tarfile.open(tar_path, "r") as tf:
+        for member in tf.getmembers():
+            if not member.name.endswith(".json"):
                 continue
-            with z.open(name) as f:
+            f = tf.extractfile(member)
+            if f:
                 try:
                     data = json.load(f)
                     decision_date = extract_decision_date_from_json(data)
@@ -124,14 +125,14 @@ def find_latest_decision_date_in_zip(zip_path):
                     continue
 
     if latest_date:
-        logger.info(f"Latest decision date in metadata zip: {latest_date.date()}")
+        logger.info(f"Latest decision date in metadata tar: {latest_date.date()}")
     else:
         logger.warning(
-            "No decision date found in metadata zip, falling back to ZIP entry date."
+            "No decision date found in metadata tar, falling back to TAR entry date."
         )
         # fallback (not recommended)
-        with zipfile.ZipFile(zip_path, "r") as z:
-            latest_date = max(datetime(*zi.date_time[:3]) for zi in z.infolist())
+        with tarfile.open(tar_path, "r") as tf:
+            latest_date = max(datetime.fromtimestamp(m.mtime) for m in tf.getmembers())
     return latest_date
 
 
@@ -150,7 +151,7 @@ def get_latest_date_from_metadata(s3_bucket, force_check_files=False):
 
     # Updated path for metadata index
     index_path = index_cache_dir / f"{current_year}_metadata.index.json"
-    index_key = f"metadata/zip/year={current_year}/metadata.index.json"
+    index_key = f"metadata/tar/year={current_year}/metadata.index.json"
 
     if not force_check_files:
         try:
@@ -180,8 +181,8 @@ def get_latest_date_from_metadata(s3_bucket, force_check_files=False):
     # Fall back to the original method - parsing individual files
     logger.info("Falling back to parsing individual files for decision dates...")
     local_dir = Path("./local_sc_judgments_data")
-    latest_zip = sync_latest_metadata_zip(s3_bucket, local_dir)
-    return find_latest_decision_date_in_zip(latest_zip)
+    latest_zip = sync_latest_metadata_tar(s3_bucket, local_dir)
+    return find_latest_decision_date_in_tar(latest_zip)
 
 
 def run_downloader(start_date, end_date, archive_manager=None):

@@ -4,8 +4,8 @@ Migration Verification Script
 
 This script verifies that the migration to multi-part format was successful by checking:
 1. All index files are in V2 format (have "parts" array)
-2. No old structure files remain (data/zip/year=YYYY/*.zip)
-3. No old index files remain (data/zip/year=YYYY/*.index.json)
+2. No old structure files remain (data/tar/year=YYYY/*.tar)
+3. No old index files remain (data/tar/year=YYYY/*.index.json)
 4. All archives have corresponding V2 indexes
 
 Usage:
@@ -48,11 +48,11 @@ class MigrationVerifier:
         """List all years in the bucket"""
         years = set()
 
-        # Check data/zip directory
+        # Check data/tar directory
         try:
             paginator = self.s3.get_paginator("list_objects_v2")
             for page in paginator.paginate(
-                Bucket=self.bucket_name, Prefix="data/zip/", Delimiter="/"
+                Bucket=self.bucket_name, Prefix="data/tar/", Delimiter="/"
             ):
                 if "CommonPrefixes" in page:
                     for prefix in page["CommonPrefixes"]:
@@ -62,13 +62,13 @@ class MigrationVerifier:
                                 year = int(part.split("=")[1])
                                 years.add(year)
         except Exception as e:
-            logger.error(f"Error listing years from data/zip: {e}")
+            logger.error(f"Error listing years from data/tar: {e}")
 
-        # Check metadata/zip directory
+        # Check metadata/tar directory
         try:
             paginator = self.s3.get_paginator("list_objects_v2")
             for page in paginator.paginate(
-                Bucket=self.bucket_name, Prefix="metadata/zip/", Delimiter="/"
+                Bucket=self.bucket_name, Prefix="metadata/tar/", Delimiter="/"
             ):
                 if "CommonPrefixes" in page:
                     for prefix in page["CommonPrefixes"]:
@@ -78,7 +78,7 @@ class MigrationVerifier:
                                 year = int(part.split("=")[1])
                                 years.add(year)
         except Exception as e:
-            logger.error(f"Error listing years from metadata/zip: {e}")
+            logger.error(f"Error listing years from metadata/tar: {e}")
 
         return years
 
@@ -86,9 +86,9 @@ class MigrationVerifier:
         """Check for files in old flat structure"""
         old_files = []
 
-        # Check for old structure archives: data/zip/year=YYYY/{english,regional}.zip
+        # Check for old structure archives: data/tar/year=YYYY/{english,regional}.tar
         for archive_type in ["english", "regional"]:
-            old_key = f"data/zip/year={year}/{archive_type}.zip"
+            old_key = f"data/tar/year={year}/{archive_type}.tar"
             try:
                 self.s3.head_object(Bucket=self.bucket_name, Key=old_key)
                 old_files.append(old_key)
@@ -104,9 +104,9 @@ class MigrationVerifier:
         """Check for old index files in flat structure"""
         old_indexes = []
 
-        # Check for old index files: data/zip/year=YYYY/{english,regional}.index.json
+        # Check for old index files: data/tar/year=YYYY/{english,regional}.index.json
         for archive_type in ["english", "regional"]:
-            old_index_key = f"data/zip/year={year}/{archive_type}.index.json"
+            old_index_key = f"data/tar/year={year}/{archive_type}.index.json"
             try:
                 self.s3.head_object(Bucket=self.bucket_name, Key=old_index_key)
                 old_indexes.append(old_index_key)
@@ -191,9 +191,9 @@ class MigrationVerifier:
         # Check new structure indexes
         for archive_type in ["english", "regional", "metadata"]:
             if archive_type == "metadata":
-                s3_dir = f"metadata/zip/year={year}/"
+                s3_dir = f"metadata/tar/year={year}/"
             else:
-                s3_dir = f"data/zip/year={year}/{archive_type}/"
+                s3_dir = f"data/tar/year={year}/{archive_type}/"
 
             index_info = self.check_index_format(year, archive_type, s3_dir)
             results["indexes"][archive_type] = index_info

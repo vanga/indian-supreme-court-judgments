@@ -31,8 +31,8 @@ def get_dataset_sizes():
     # List all index.json files - ONLY from data/ and metadata/, NOT data-old/
     paginator = s3.get_paginator("list_objects_v2")
 
-    # Process data/zip/ directory only
-    for prefix in ["data/zip/", "metadata/zip/"]:
+    # Process data/tar/ directory only
+    for prefix in ["data/tar/", "metadata/tar/"]:
         for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
             if "Contents" not in page:
                 continue
@@ -44,7 +44,7 @@ def get_dataset_sizes():
                 if not key.endswith(".index.json"):
                     continue
 
-                # Extract year from path like: data/zip/year=2023/english/english.index.json
+                # Extract year from path like: data/tar/year=2023/english/english.index.json
                 year_match = re.search(r"year=(\d{4})/", key)
                 if not year_match:
                     continue
