@@ -4,7 +4,7 @@
 
 ### Summary
 
-This dataset contains judgements from the Indian Supreme Court, downloaded from [ecourts website](https://scr.sci.gov.in). It contains judgments from 1950 to 2025, along with raw metadata (in json format) and structured metadata. Judgments from the website are further compressed to optimize for size (care has been taken to not have any loss of data either in content or in visual appearance). Judgments are available in both English and regional Indian languages in zip format for easier download.
+This dataset contains judgements from the Indian Supreme Court, downloaded from [ecourts website](https://scr.sci.gov.in). It contains judgments from 1950 to 2025, along with raw metadata (in json format) and structured metadata. Judgments from the website are further compressed to optimize for size (care has been taken to not have any loss of data either in content or in visual appearance). Judgments are available in both English and regional Indian languages in tar format for easier download.
 
 ## Data
 
@@ -24,18 +24,18 @@ This dataset contains judgements from the Indian Supreme Court, downloaded from 
 ```
 s3://indian-supreme-court-judgments/
 ├── data/
-│   └── zip/
+│   └── tar/
 │       └── year=YYYY/
 │           ├── english/
-│           │   ├── english.zip
+│           │   ├── english.tar
 │           │   └── english.index.json
 │           └── regional/
-│               ├── regional.zip
+│               ├── regional.tar
 │               └── regional.index.json
 └── metadata/
-    ├── zip/
+    ├── tar/
     │   └── year=YYYY/
-    │       ├── metadata.zip
+    │       ├── metadata.tar
     │       └── metadata.index.json
     └── parquet/
         └── year=YYYY/
@@ -46,20 +46,20 @@ Where YYYY represents the year (1950-2025).
 
 Each year has three main components:
 
-- English judgments (ZIP file and index JSON)
-- Regional language judgments (ZIP file and index JSON)
-- Metadata (ZIP file and index JSON)
+- English judgments (TAR file and index JSON)
+- Regional language judgments (TAR file and index JSON)
+- Metadata (TAR file and index JSON)
 
 ### Example usage
 
-- Example command to list all available years: `aws s3 ls s3://indian-supreme-court-judgments/data/zip --no-sign-request`
-- Example command to download English judgments for 2023: `aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/english/english.zip . --no-sign-request`
-- Example command to view metadata index for 2023: `aws s3 cp s3://indian-supreme-court-judgments/metadata/zip/year=2023/metadata.index.json . --no-sign-request`
-- Since the S3 bucket is public, files can also be downloaded using links like `https://indian-supreme-court-judgments.s3.amazonaws.com/data/zip/year=2023/english/english.zip`
+- Example command to list all available years: `aws s3 ls s3://indian-supreme-court-judgments/data/tar --no-sign-request`
+- Example command to download English judgments for 2023: `aws s3 cp s3://indian-supreme-court-judgments/data/tar/year=2023/english/english.tar . --no-sign-request`
+- Example command to view metadata index for 2023: `aws s3 cp s3://indian-supreme-court-judgments/metadata/tar/year=2023/metadata.index.json . --no-sign-request`
+- Since the S3 bucket is public, files can also be downloaded using links like `https://indian-supreme-court-judgments.s3.amazonaws.com/data/tar/year=2023/english/english.tar`
 
 ### Working with the data
 
-- Index files (JSON) provide information about the contents of each ZIP file without downloading the entire archive
+- Index files (JSON) provide information about the contents of each TAR file without downloading the entire archive
 - English and regional language files contain the full text of judgments
 - Metadata files contain structured information about each judgment, including case numbers, judgment dates, bench information, petitioners, and respondents
 
