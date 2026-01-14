@@ -2,11 +2,16 @@
 """
 Migration Script: Convert ZIP archives to TAR format in S3
 
-This script migrates the test bucket from ZIP to TAR format:
-1. Downloads ZIP files from data/zip/ and metadata/zip/
-2. Converts them to uncompressed TAR format
-3. Uploads to data/tar/ and metadata/tar/ with new structure
-4. Creates/updates index files
+This script migrates the bucket from ZIP to TAR format:
+1. Downloads all ZIP files (including multi-part: regional.zip + part-*.zip)
+2. Extracts all files from all parts
+3. Creates a single uncompressed TAR archive
+4. Uploads to data/tar/ and metadata/tar/ with new structure
+5. Creates/updates index files with correct totals
+
+Multi-part ZIP structure:
+- Main file: {archive_type}.zip (e.g., regional.zip)
+- Additional parts: part-{datetime}.zip (e.g., part-20260109T093548.zip)
 
 Usage:
     AWS_PROFILE=dattam-supreme python migrate_zip_to_tar.py --bucket indian-supreme-court-judgments-test
@@ -19,6 +24,7 @@ import io
 import json
 import logging
 import os
+import re
 import tarfile
 import tempfile
 import zipfile
@@ -38,9 +44,6 @@ logger = logging.getLogger(__name__)
 
 # Indian Standard Time timezone
 IST = timezone(timedelta(hours=5, minutes=30))
-
-# Target part size (1GB)
-TARGET_PART_SIZE = 1 * 1024 * 1024 * 1024
 
 
 def format_size(size_bytes: int) -> str:
@@ -116,8 +119,9 @@ class IndexFileV2:
 
 
 class ZipToTarMigrator:
-    def __init__(self, bucket_name: str, dry_run: bool = False):
+    def __init__(self, bucket_name: str, source_prefix: str = "", dry_run: bool = False):
         self.bucket_name = bucket_name
+        self.source_prefix = source_prefix  # e.g., "data-old/" for migrating from data-old
         self.dry_run = dry_run
         self.s3 = boto3.client("s3")
 
@@ -128,9 +132,10 @@ class ZipToTarMigrator:
         paginator = self.s3.get_paginator("list_objects_v2")
 
         # Check data/zip directory
+        data_prefix = f"{self.source_prefix}data/zip/"
         try:
             for page in paginator.paginate(
-                Bucket=self.bucket_name, Prefix="data/zip/", Delimiter="/"
+                Bucket=self.bucket_name, Prefix=data_prefix, Delimiter="/"
             ):
                 if "CommonPrefixes" in page:
                     for prefix in page["CommonPrefixes"]:
@@ -140,12 +145,13 @@ class ZipToTarMigrator:
                                 year = int(part.split("=")[1])
                                 years.add(year)
         except Exception as e:
-            logger.error(f"Error listing years from data/zip: {e}")
+            logger.error(f"Error listing years from {data_prefix}: {e}")
 
         # Check metadata/zip directory
+        metadata_prefix = f"{self.source_prefix}metadata/zip/"
         try:
             for page in paginator.paginate(
-                Bucket=self.bucket_name, Prefix="metadata/zip/", Delimiter="/"
+                Bucket=self.bucket_name, Prefix=metadata_prefix, Delimiter="/"
             ):
                 if "CommonPrefixes" in page:
                     for prefix in page["CommonPrefixes"]:
@@ -155,51 +161,73 @@ class ZipToTarMigrator:
                                 year = int(part.split("=")[1])
                                 years.add(year)
         except Exception as e:
-            logger.error(f"Error listing years from metadata/zip: {e}")
+            logger.error(f"Error listing years from {metadata_prefix}: {e}")
 
         return sorted(list(years))
 
     def get_zip_archives(self, year: int) -> Dict[str, dict]:
-        """Get info about existing ZIP archives for a year"""
+        """
+        Get info about existing ZIP archives for a year.
+
+        This handles multi-part archives where:
+        - Main file: {archive_type}.zip (e.g., regional.zip)
+        - Additional parts: part-{datetime}.zip (e.g., part-20260109T093548.zip)
+        """
         archives = {}
+        paginator = self.s3.get_paginator("list_objects_v2")
 
         for archive_type in ["english", "regional", "metadata"]:
             if archive_type == "metadata":
-                # Check both old flat structure and new subfolder structure
-                old_zip_key = f"metadata/zip/year={year}/metadata.zip"
-                new_zip_key = f"metadata/zip/year={year}/metadata/metadata.zip"
+                zip_dir = f"{self.source_prefix}metadata/zip/year={year}/"
             else:
-                old_zip_key = f"data/zip/year={year}/{archive_type}.zip"
-                new_zip_key = f"data/zip/year={year}/{archive_type}/{archive_type}.zip"
+                zip_dir = f"{self.source_prefix}data/zip/year={year}/{archive_type}/"
 
-            # Try old structure first
-            zip_key = None
-            size = None
+            zip_files = []
+            total_size = 0
 
             try:
-                response = self.s3.head_object(Bucket=self.bucket_name, Key=old_zip_key)
-                size = response["ContentLength"]
-                zip_key = old_zip_key
-            except self.s3.exceptions.ClientError:
-                # Try new structure
-                try:
-                    response = self.s3.head_object(
-                        Bucket=self.bucket_name, Key=new_zip_key
-                    )
-                    size = response["ContentLength"]
-                    zip_key = new_zip_key
-                except self.s3.exceptions.ClientError:
-                    pass
+                for page in paginator.paginate(Bucket=self.bucket_name, Prefix=zip_dir):
+                    if "Contents" not in page:
+                        continue
 
-            if zip_key and size:
+                    for obj in page["Contents"]:
+                        key = obj["Key"]
+                        size = obj["Size"]
+
+                        # Skip index files
+                        if key.endswith(".index.json"):
+                            continue
+
+                        # Match main zip or part-*.zip files
+                        filename = key.split("/")[-1]
+                        if filename == f"{archive_type}.zip" or filename.startswith("part-"):
+                            if filename.endswith(".zip"):
+                                zip_files.append({
+                                    "key": key,
+                                    "filename": filename,
+                                    "size": size,
+                                    "is_main": filename == f"{archive_type}.zip"
+                                })
+                                total_size += size
+
+            except Exception as e:
+                logger.error(f"Error listing {zip_dir}: {e}")
+                continue
+
+            if zip_files:
+                # Sort: main file first, then parts by datetime
+                zip_files.sort(key=lambda x: (not x["is_main"], x["filename"]))
+
                 archives[archive_type] = {
-                    "zip_key": zip_key,
-                    "size": size,
+                    "zip_dir": zip_dir,
+                    "zip_files": zip_files,
+                    "total_size": total_size,
                     "archive_type": archive_type,
                 }
-                logger.info(
-                    f"  Found {archive_type}.zip: {format_size(size)} at {zip_key}"
-                )
+
+                logger.info(f"  Found {archive_type}: {len(zip_files)} file(s), {format_size(total_size)}")
+                for zf in zip_files:
+                    logger.info(f"    - {zf['filename']}: {format_size(zf['size'])}")
 
         return archives
 
@@ -213,42 +241,68 @@ class ZipToTarMigrator:
             logger.error(f"Error downloading {s3_key}: {e}")
             return False
 
-    def convert_zip_to_tar(
-        self, zip_path: Path, tar_path: Path
-    ) -> Tuple[bool, List[str]]:
-        """Convert a ZIP file to TAR format"""
-        files = []
-        try:
-            logger.info(f"Converting {zip_path.name} to TAR format...")
+    def extract_files_from_zips(
+        self, zip_files: List[dict], temp_dir: Path
+    ) -> Tuple[bool, Dict[str, bytes]]:
+        """
+        Download and extract all files from multiple ZIP archives.
+        Returns a dict of filename -> content for all unique files.
+        """
+        all_files = {}
 
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                with tarfile.open(tar_path, "w") as tf:
+        for zip_info in zip_files:
+            zip_path = temp_dir / zip_info["filename"]
+
+            # Download ZIP
+            if not self.download_zip(zip_info["key"], zip_path):
+                return False, {}
+
+            # Extract files
+            try:
+                logger.info(f"Extracting {zip_info['filename']}...")
+                with zipfile.ZipFile(zip_path, "r") as zf:
                     members = zf.namelist()
-                    with tqdm(total=len(members), desc="Converting") as pbar:
-                        for name in members:
-                            # Read file content from ZIP
-                            content = zf.read(name)
-                            files.append(name)
+                    for name in tqdm(members, desc=f"Extracting {zip_info['filename']}"):
+                        if name not in all_files:  # Avoid duplicates
+                            all_files[name] = zf.read(name)
 
-                            # Create TAR info
-                            info = tarfile.TarInfo(name=name)
-                            info.size = len(content)
+                logger.info(f"Extracted {len(members)} files from {zip_info['filename']}")
 
-                            # Add to TAR
-                            tf.addfile(info, io.BytesIO(content))
-                            pbar.update(1)
+                # Remove ZIP to save space
+                zip_path.unlink()
 
-            logger.info(f"Converted {len(files)} files to {tar_path.name}")
-            return True, files
+            except Exception as e:
+                logger.error(f"Error extracting {zip_info['filename']}: {e}")
+                return False, {}
+
+        return True, all_files
+
+    def create_tar_from_files(
+        self, files: Dict[str, bytes], tar_path: Path
+    ) -> Tuple[bool, List[str]]:
+        """Create a TAR archive from a dict of files"""
+        file_list = []
+        try:
+            logger.info(f"Creating TAR with {len(files)} files...")
+
+            with tarfile.open(tar_path, "w") as tf:
+                for name, content in tqdm(files.items(), desc="Creating TAR"):
+                    info = tarfile.TarInfo(name=name)
+                    info.size = len(content)
+                    tf.addfile(info, io.BytesIO(content))
+                    file_list.append(name)
+
+            logger.info(f"Created TAR with {len(file_list)} files: {format_size(tar_path.stat().st_size)}")
+            return True, file_list
 
         except Exception as e:
-            logger.error(f"Error converting ZIP to TAR: {e}")
+            logger.error(f"Error creating TAR: {e}")
             return False, []
 
     def upload_tar(self, local_path: Path, s3_key: str) -> bool:
         """Upload a TAR file to S3"""
         if self.dry_run:
-            logger.info(f"DRY RUN: Would upload {local_path.name} to {s3_key}")
+            logger.info(f"DRY RUN: Would upload {local_path.name} ({format_size(local_path.stat().st_size)}) to {s3_key}")
             return True
 
         try:
@@ -305,6 +359,8 @@ class ZipToTarMigrator:
 
         if self.dry_run:
             logger.info(f"DRY RUN: Would upload index to {index_key}")
+            logger.info(f"  - file_count: {index.file_count}")
+            logger.info(f"  - total_size: {index.total_size_human}")
             return True
 
         try:
@@ -328,7 +384,7 @@ class ZipToTarMigrator:
 
         results = {}
 
-        # Get ZIP archives
+        # Get ZIP archives (including multi-part)
         archives = self.get_zip_archives(year)
 
         if not archives:
@@ -340,19 +396,26 @@ class ZipToTarMigrator:
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_path = Path(temp_dir)
-                zip_path = temp_path / f"{archive_type}.zip"
-                tar_path = temp_path / f"{archive_type}.tar"
 
-                # Download ZIP
-                if not self.download_zip(archive_info["zip_key"], zip_path):
-                    results[archive_type] = False
-                    continue
-
-                # Convert to TAR
-                success, files = self.convert_zip_to_tar(zip_path, tar_path)
+                # Extract all files from all ZIP parts
+                success, all_files = self.extract_files_from_zips(
+                    archive_info["zip_files"], temp_path
+                )
                 if not success:
                     results[archive_type] = False
                     continue
+
+                logger.info(f"Total unique files extracted: {len(all_files)}")
+
+                # Create single TAR from all files
+                tar_path = temp_path / f"{archive_type}.tar"
+                success, file_list = self.create_tar_from_files(all_files, tar_path)
+                if not success:
+                    results[archive_type] = False
+                    continue
+
+                # Clear files dict to free memory
+                all_files.clear()
 
                 # Determine target S3 path
                 if archive_type == "metadata":
@@ -369,7 +432,7 @@ class ZipToTarMigrator:
 
                 # Create and upload index
                 tar_size = tar_path.stat().st_size
-                parts_info = [(f"{archive_type}.tar", files, tar_size)]
+                parts_info = [(f"{archive_type}.tar", file_list, tar_size)]
 
                 if not self.create_and_upload_index(
                     year, archive_type, tar_s3_dir, parts_info
@@ -379,6 +442,8 @@ class ZipToTarMigrator:
 
                 results[archive_type] = True
                 logger.info(f"Successfully migrated {archive_type} for year {year}")
+                logger.info(f"  - Files: {len(file_list)}")
+                logger.info(f"  - Size: {format_size(tar_size)}")
 
         return results
 
@@ -429,6 +494,11 @@ def main():
     parser.add_argument("--bucket", required=True, help="S3 bucket name")
     parser.add_argument("--year", type=int, help="Specific year to migrate (optional)")
     parser.add_argument(
+        "--source-prefix",
+        default="",
+        help="Source prefix for ZIP files (e.g., 'data-old/' to read from data-old/data/zip/)"
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show what would be done without making changes",
@@ -437,10 +507,12 @@ def main():
     args = parser.parse_args()
 
     logger.info(f"Starting ZIP to TAR migration for bucket: {args.bucket}")
+    if args.source_prefix:
+        logger.info(f"Source prefix: {args.source_prefix}")
     if args.dry_run:
         logger.info("DRY RUN MODE - No changes will be made")
 
-    migrator = ZipToTarMigrator(args.bucket, dry_run=args.dry_run)
+    migrator = ZipToTarMigrator(args.bucket, source_prefix=args.source_prefix, dry_run=args.dry_run)
     migrator.migrate_all(specific_year=args.year)
 
     logger.info("\nMigration complete!")
