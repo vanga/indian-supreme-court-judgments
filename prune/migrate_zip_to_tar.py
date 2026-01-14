@@ -242,29 +242,32 @@ class ZipToTarMigrator:
             return False
 
     def extract_files_from_zips(
-        self, zip_files: List[dict], temp_dir: Path
-    ) -> Tuple[bool, Dict[str, bytes]]:
+        self, zip_files: List[dict], temp_dir: Path, extract_dir: Path
+    ) -> Tuple[bool, set]:
         """
-        Download and extract all files from multiple ZIP archives.
-        Returns a dict of filename -> content for all unique files.
+        Download and extract all files from multiple ZIP archives to disk.
+        Returns a set of unique filenames extracted.
+        Uses disk instead of RAM to handle large archives.
         """
-        all_files = {}
+        extracted_files = set()
 
         for zip_info in zip_files:
             zip_path = temp_dir / zip_info["filename"]
 
             # Download ZIP
             if not self.download_zip(zip_info["key"], zip_path):
-                return False, {}
+                return False, set()
 
-            # Extract files
+            # Extract files to disk
             try:
-                logger.info(f"Extracting {zip_info['filename']}...")
+                logger.info(f"Extracting {zip_info['filename']} to disk...")
                 with zipfile.ZipFile(zip_path, "r") as zf:
                     members = zf.namelist()
                     for name in tqdm(members, desc=f"Extracting {zip_info['filename']}"):
-                        if name not in all_files:  # Avoid duplicates
-                            all_files[name] = zf.read(name)
+                        if name not in extracted_files:  # Avoid duplicates
+                            # Extract directly to disk
+                            zf.extract(name, extract_dir)
+                            extracted_files.add(name)
 
                 logger.info(f"Extracted {len(members)} files from {zip_info['filename']}")
 
@@ -273,27 +276,27 @@ class ZipToTarMigrator:
 
             except Exception as e:
                 logger.error(f"Error extracting {zip_info['filename']}: {e}")
-                return False, {}
+                return False, set()
 
-        return True, all_files
+        return True, extracted_files
 
-    def create_tar_from_files(
-        self, files: Dict[str, bytes], tar_path: Path
+    def create_tar_from_disk(
+        self, extract_dir: Path, file_list: set, tar_path: Path
     ) -> Tuple[bool, List[str]]:
-        """Create a TAR archive from a dict of files"""
-        file_list = []
+        """Create a TAR archive from files on disk (memory-efficient)"""
+        files = []
         try:
-            logger.info(f"Creating TAR with {len(files)} files...")
+            logger.info(f"Creating TAR with {len(file_list)} files from disk...")
 
             with tarfile.open(tar_path, "w") as tf:
-                for name, content in tqdm(files.items(), desc="Creating TAR"):
-                    info = tarfile.TarInfo(name=name)
-                    info.size = len(content)
-                    tf.addfile(info, io.BytesIO(content))
-                    file_list.append(name)
+                for name in tqdm(sorted(file_list), desc="Creating TAR"):
+                    file_path = extract_dir / name
+                    if file_path.exists():
+                        tf.add(file_path, arcname=name)
+                        files.append(name)
 
-            logger.info(f"Created TAR with {len(file_list)} files: {format_size(tar_path.stat().st_size)}")
-            return True, file_list
+            logger.info(f"Created TAR with {len(files)} files: {format_size(tar_path.stat().st_size)}")
+            return True, files
 
         except Exception as e:
             logger.error(f"Error creating TAR: {e}")
@@ -396,26 +399,28 @@ class ZipToTarMigrator:
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_path = Path(temp_dir)
+                extract_path = temp_path / "extracted"
+                extract_path.mkdir()
 
-                # Extract all files from all ZIP parts
-                success, all_files = self.extract_files_from_zips(
-                    archive_info["zip_files"], temp_path
+                # Extract all files from all ZIP parts to disk
+                success, extracted_files = self.extract_files_from_zips(
+                    archive_info["zip_files"], temp_path, extract_path
                 )
                 if not success:
                     results[archive_type] = False
                     continue
 
-                logger.info(f"Total unique files extracted: {len(all_files)}")
+                logger.info(f"Total unique files extracted: {len(extracted_files)}")
 
-                # Create single TAR from all files
+                # Create single TAR from files on disk
                 tar_path = temp_path / f"{archive_type}.tar"
-                success, file_list = self.create_tar_from_files(all_files, tar_path)
+                success, file_list = self.create_tar_from_disk(extract_path, extracted_files, tar_path)
                 if not success:
                     results[archive_type] = False
                     continue
 
-                # Clear files dict to free memory
-                all_files.clear()
+                # Clear set to free memory (minimal)
+                extracted_files.clear()
 
                 # Determine target S3 path
                 if archive_type == "metadata":
