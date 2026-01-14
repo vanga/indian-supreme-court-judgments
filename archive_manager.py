@@ -207,11 +207,13 @@ class S3ArchiveManager:
         local_dir: Path,
         immediate_upload=False,
         max_archive_size: int = MAX_ARCHIVE_SIZE,
+        local_only: bool = False,
     ):
         self.s3_bucket = s3_bucket
         self.s3_prefix = s3_prefix
         self.local_dir = Path(local_dir)
-        self.s3 = boto3.client("s3")
+        self.local_only = local_only
+        self.s3 = None if local_only else boto3.client("s3")
         self.max_archive_size = max_archive_size
 
         # Archive tracking - stores open tar file handles
@@ -243,6 +245,16 @@ class S3ArchiveManager:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        # In local_only mode, just finalize archives without uploading
+        if self.local_only:
+            for key in list(self.archives.keys()):
+                year, archive_type = key
+                logger.info(
+                    f"Finalizing archive (local only): {archive_type} for year {year}"
+                )
+                self._finalize_current_part(year, archive_type, upload=False)
+            return
+
         # Upload any remaining parts
         if self.immediate_upload:
             # Finalize and upload any currently open archives
@@ -272,6 +284,21 @@ class S3ArchiveManager:
 
     def _load_index_from_s3(self, year: int, archive_type: str) -> IndexFileV2:
         """Load index file from S3, returning empty index if not found"""
+        # In local_only mode, always return empty index
+        if self.local_only:
+            now = ist_now_iso()
+            return IndexFileV2(
+                year=year,
+                archive_type=archive_type,
+                file_count=0,
+                total_size=0,
+                total_size_human="0 B",
+                created_at=now,
+                updated_at=now,
+                parts=[],
+                files=[],
+            )
+
         s3_dir = self._get_s3_dir(year, archive_type)
         index_key = f"{s3_dir}{archive_type}.index.json"
 
@@ -320,6 +347,10 @@ class S3ArchiveManager:
         self, year: int, archive_type: str
     ) -> Optional[Path]:
         """Download the main archive (e.g., english.tar) if it exists in S3"""
+        # In local_only mode, skip S3 download
+        if self.local_only:
+            return None
+
         s3_dir = self._get_s3_dir(year, archive_type)
         ext = self._get_archive_extension(archive_type)
         archive_name = f"{archive_type}{ext}"
@@ -464,7 +495,7 @@ class S3ArchiveManager:
         logger.info(f"Created new archive part: {local_path}")
         return archive
 
-    def _finalize_current_part(self, year: int, archive_type: str):
+    def _finalize_current_part(self, year: int, archive_type: str, upload: bool = True):
         """Finalize the current archive part and upload immediately if in immediate_upload mode"""
         key = (year, archive_type)
 
@@ -489,8 +520,11 @@ class S3ArchiveManager:
             "local_path": str(local_path),
         }
 
+        # If upload is disabled (local_only mode), just log and skip upload
+        if not upload:
+            logger.info(f"Archive finalized locally: {local_path.name} ({part_info['size_human']})")
         # If immediate upload is enabled, upload this part now
-        if self.immediate_upload:
+        elif self.immediate_upload:
             logger.info(f"Immediately uploading finalized part: {local_path.name}")
             self._upload_single_part(year, archive_type, part_info)
         else:
