@@ -1,4 +1,5 @@
-# Indian Supreme Court Judgments 
+# Indian Supreme Court Judgments
+
 ## Overview
 
 This repository contains judgments from the Supreme Court of India, made available as part of the AWS Open Data Sponsorship Program. This dataset aims to make Indian legal information more accessible to researchers, legal professionals, and the general public.
@@ -11,21 +12,23 @@ The Indian Supreme Court Judgments dataset contains court judgments delivered by
 
 Each year's data consists of three main components:
 
-1. **English Judgments** (`english.zip`):
+1. **English Judgments** (`english.tar`):
+
    - Contains judgments in English language for the specified year
-   - Each zip file has a corresponding index file (`english.index.json`) that provides information about the contained judgments
+   - Each tar file has a corresponding index file (`english.index.json`) that provides information about the contained judgments
 
-2. **Regional Language Judgments** (`regional.zip`):
+2. **Regional Language Judgments** (`regional.tar`):
+
    - Contains judgments in various regional Indian languages for the specified year
-   - Each zip file has a corresponding index file (`regional.index.json`) that provides information about the contained judgments
+   - Each tar file has a corresponding index file (`regional.index.json`) that provides information about the contained judgments
 
-3. **Metadata** (`metadata.zip`):
+3. **Metadata** (`metadata.tar`):
    - Contains metadata about judgments for the specified year
-   - Each zip file has a corresponding index file (`metadata.index.json`) that provides information about the contained metadata
+   - Each tar file has a corresponding index file (`metadata.index.json`) that provides information about the contained metadata
 
 ### Index Files
 
-Each zip file is accompanied by an index JSON file that contains information about the files within the zip archive. These index files can be used to quickly determine the contents without downloading the complete zip file.
+Each tar file is accompanied by an index JSON file that contains information about the files within the tar archive. These index files can be used to quickly determine the contents without downloading the complete tar file.
 
 ## Usage
 
@@ -34,23 +37,26 @@ Each zip file is accompanied by an index JSON file that contains information abo
 This dataset is available in the AWS Open Data Registry and can be accessed via:
 
 1. **Direct S3 Access**:
+
    ```
    aws s3 ls s3://indian-supreme-court-judgments/ --no-sign-request
    ```
 
 2. **Listing Available Years**:
+
    ```
-   aws s3 ls s3://indian-supreme-court-judgments/data/zip/ --no-sign-request
+   aws s3 ls s3://indian-supreme-court-judgments/data/tar/ --no-sign-request
    ```
 
 3. **Downloading Index Files** (to preview content):
+
    ```
-   aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/english.index.json . --no-sign-request
+   aws s3 cp s3://indian-supreme-court-judgments/data/tar/year=2023/english/english.index.json . --no-sign-request
    ```
 
 4. **Downloading Judgment Files**:
    ```
-   aws s3 cp s3://indian-supreme-court-judgments/data/zip/year=2023/english.zip . --no-sign-request
+   aws s3 cp s3://indian-supreme-court-judgments/data/tar/year=2023/english/english.tar . --no-sign-request
    ```
 
 ### Example Use Cases

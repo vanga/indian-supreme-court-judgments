@@ -1,0 +1,116 @@
+name: Fill S3 Data (5-Year Chunks)
+
+on:
+  # Schedule is disabled during initial development/testing phase.
+  # Uncomment the schedule below to enable automatic runs every 6 hours.
+  # schedule:
+  #   - cron: "0 */6 * * *"  # Runs every 6 hours - processes as many chunks as possible within timeout
+  workflow_dispatch: {}
+
+jobs:
+  update-s3-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Update S3 data (process all remaining chunks within timeout)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+        run: python3 download.py --sync-s3-fill --timeout-hours 5.5
+
+      - name: Commit and push progress (always runs)
+        if: always()
+        run: |-
+          git config user.name "Automated"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          timestamp=$(date -u)
+
+          # Helper function to safely commit with proper error handling
+          safe_git_commit() {
+            local message="$1"
+            commit_output=$(git commit -m "$message" 2>&1)
+            commit_status=$?
+            if [ $commit_status -ne 0 ]; then
+              if echo "$commit_output" | grep -q "nothing to commit"; then
+                echo "No changes to commit (already up to date)"
+                return 0
+              else
+                echo "git commit failed: $commit_output"
+                return $commit_status
+              fi
+            fi
+            return 0
+          }
+
+          # Check if there are any changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            # Check if this was timeout or completion
+            if [ -f "sc_fill_progress.json" ]; then
+              # Extract chunk info from progress file
+              if command -v jq >/dev/null 2>&1; then
+                completed_chunks=$(jq -r '.completed_chunks | length' sc_fill_progress.json 2>/dev/null || echo "unknown")
+                last_chunk=$(jq -r '.last_chunk_end // "unknown"' sc_fill_progress.json 2>/dev/null || echo "unknown")
+                safe_git_commit "S3 fill progress: $completed_chunks chunks completed (timeout reached, last: $last_chunk) - ${timestamp}"
+              else
+                safe_git_commit "S3 fill progress saved (timeout reached): ${timestamp}"
+              fi
+            else
+              echo "No progress file - all chunks completed!"
+              safe_git_commit "S3 fill completed - all chunks processed: ${timestamp}"
+            fi
+            git push
+          fi
+
+      - name: Create update record
+        if: always()
+        run: |
+          echo "## S3 Fill Status (5-Year Chunks)" >> $GITHUB_STEP_SUMMARY
+          echo "Run completed at: $(date)" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "sc_fill_progress.json" ]; then
+            echo "📊 **Status**: Timeout reached - Progress saved" >> $GITHUB_STEP_SUMMARY
+            echo "🔄 **Next Action**: Run workflow again to continue with remaining chunks" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract progress info
+            if command -v jq >/dev/null 2>&1; then
+              start_date=$(jq -r '.start_date // "unknown"' sc_fill_progress.json)
+              end_date=$(jq -r '.end_date // "unknown"' sc_fill_progress.json)
+              last_chunk_end=$(jq -r '.last_chunk_end // "unknown"' sc_fill_progress.json)
+              completed_chunks=$(jq -r '.completed_chunks | length' sc_fill_progress.json)
+              
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Progress Details:**" >> $GITHUB_STEP_SUMMARY
+              echo "- 📅 Overall Range: $start_date to $end_date" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ Completed Chunks: $completed_chunks" >> $GITHUB_STEP_SUMMARY
+              echo "- 🏁 Last Chunk End: $last_chunk_end" >> $GITHUB_STEP_SUMMARY
+              
+              # Show completed chunks
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Completed Chunks:**" >> $GITHUB_STEP_SUMMARY
+              jq -r '.completed_chunks[] | "- " + .[0] + " to " + .[1]' sc_fill_progress.json >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "🎉 **Status**: All chunks completed!" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Result**: All 5-year chunks from 1950 to present have been processed" >> $GITHUB_STEP_SUMMARY
+            echo "💾 **Data**: All data has been uploaded to S3" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Log update timestamp
+        if: always()
+        run: |
+          if [ -f "sc_fill_progress.json" ]; then
+            echo "::notice::Timeout reached at $(date) - Run workflow again to continue with remaining chunks"
+          else
+            echo "::notice::All chunks completed successfully at $(date) - Process finished!"
+          fi

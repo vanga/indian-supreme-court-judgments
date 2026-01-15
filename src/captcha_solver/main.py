@@ -1,12 +1,17 @@
 # from https://huggingface.co/spaces/Acetde/captchabreaker/tree/main
+import os
+from pathlib import Path
+
 import torch
 import onnx
 import onnxruntime as rt
 from torchvision import transforms as T
-from tokenizer_base import Tokenizer
+from .tokenizer_base import Tokenizer
 
 
-model_file = "captcha.onnx"
+# Get the directory where this file is located
+_current_dir = Path(__file__).parent
+model_file = str(_current_dir / "captcha.onnx")
 img_size = (32, 128)
 charset = r"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
 tokenizer_base = Tokenizer(charset)

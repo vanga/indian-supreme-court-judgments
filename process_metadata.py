@@ -3,8 +3,8 @@ import json
 import logging
 import os
 import re
+import tarfile
 import tempfile
-import zipfile
 from typing import Dict, Optional
 
 import boto3
@@ -77,26 +77,27 @@ class SupremeCourtS3Processor:
             content = response["Body"].read().decode("utf-8")
             return json.loads(content)
         except Exception as e:
-            print(f"Error reading {s3_key}: {e}")
+            logger.error(f"Error reading {s3_key}: {e}")
             return None
 
-    def process_s3_zip(self, s3_key, year):
-        """Process a ZIP file from S3 with minimal local storage."""
+    def process_s3_tar(self, s3_key, year):
+        """Process a TAR file from S3 with minimal local storage."""
         record_buffer = []
         record_count = 0
 
-        # We need to download the ZIP temporarily because zipfile needs random access
-        with tempfile.NamedTemporaryFile(suffix=".zip", delete=True) as tmp_zip:
+        # We need to download the TAR temporarily because tarfile needs random access
+        with tempfile.NamedTemporaryFile(suffix=".tar", delete=True) as tmp_tar:
             try:
-                # Download ZIP to temp file
-                self.s3.download_file(self.s3_bucket, s3_key, tmp_zip.name)
+                # Download TAR to temp file
+                self.s3.download_file(self.s3_bucket, s3_key, tmp_tar.name)
 
-                # Process ZIP contents in memory
-                with zipfile.ZipFile(tmp_zip.name, "r") as zip_ref:
-                    for file_info in zip_ref.infolist():
-                        if file_info.filename.endswith(".json"):
+                # Process TAR contents in memory
+                with tarfile.open(tmp_tar.name, "r") as tar_ref:
+                    for member in tar_ref.getmembers():
+                        if member.name.endswith(".json"):
                             # Extract JSON data directly to memory
-                            with zip_ref.open(file_info) as json_file:
+                            json_file = tar_ref.extractfile(member)
+                            if json_file:
                                 content = json_file.read().decode("utf-8")
                                 metadata = json.loads(content)
 
@@ -120,7 +121,7 @@ class SupremeCourtS3Processor:
                                         record_buffer = []
 
             except Exception as e:
-                print(f"Error processing ZIP file {s3_key}: {e}")
+                logger.error(f"Error processing TAR file {s3_key}: {e}")
 
         # Write any remaining records
         if record_buffer:
@@ -145,49 +146,49 @@ class SupremeCourtS3Processor:
                 return 1
 
         except Exception as e:
-            print(f"Error processing JSON file {s3_key}: {e}")
+            logger.error(f"Error processing JSON file {s3_key}: {e}")
 
         return 0
 
     def _extract_year_from_filename(self, filename):
-        """Extract the year from a filename like 'sc-judgments-2025-metadata.zip'."""
+        """Extract the year from a filename like 'sc-judgments-2025-metadata.tar'."""
         match = re.search(r"(\d{4})", filename)
         if match:
             return match.group(1)
         return "unknown"
 
     def get_all_s3_sources(self):
-        """Get all source files (ZIP archives and JSON files) from S3."""
-        # Check for ZIP archives in the new path structure first
-        zip_files = []
+        """Get all source files (TAR archives and JSON files) from S3."""
+        # Check for TAR archives in the new path structure first
+        tar_files = []
 
-        # Look for metadata zip files in metadata/zip/year=YYYY/ directory structure
-        for s3_key in self.list_s3_objects("metadata/zip/"):
-            if s3_key.endswith("metadata.zip"):
-                # Extract year from path like metadata/zip/year=2023/metadata.zip
+        # Look for metadata tar files in metadata/tar/year=YYYY/ directory structure
+        for s3_key in self.list_s3_objects("metadata/tar/"):
+            if s3_key.endswith("metadata.tar"):
+                # Extract year from path like metadata/tar/year=2023/metadata.tar
                 year_match = re.search(r"year=(\d{4})/", s3_key)
                 if year_match:
                     year = year_match.group(1)
                     # Skip if we're only processing specific years and this isn't one of them
                     if self.years_to_process and year not in self.years_to_process:
                         continue
-                    zip_files.append((s3_key, year))
+                    tar_files.append((s3_key, year))
 
         # Also look for files with the old naming pattern as a fallback
-        if not zip_files:
+        if not tar_files:
             for s3_key in self.list_s3_objects():
-                if s3_key.endswith("-metadata.zip") and "sc-judgments" in s3_key:
+                if s3_key.endswith("-metadata.tar") and "sc-judgments" in s3_key:
                     filename = os.path.basename(s3_key)
                     year = self._extract_year_from_filename(filename)
                     # Skip if we're only processing specific years and this isn't one of them
                     if self.years_to_process and year not in self.years_to_process:
                         continue
-                    zip_files.append((s3_key, year))
+                    tar_files.append((s3_key, year))
 
-        if zip_files:
-            return zip_files
+        if tar_files:
+            return tar_files
 
-        # If no ZIP files found at all, look for individual JSON files
+        # If no TAR files found at all, look for individual JSON files
         json_files = []
         for s3_key in self.list_s3_objects():
             if s3_key.endswith(".json"):
@@ -233,7 +234,7 @@ class SupremeCourtS3Processor:
     def write_records_to_s3(self, records, year):
         """Write records directly to S3 as parquet."""
         if not records:
-            return
+            return 0
 
         # Ensure all records have all fields
         for record in records:
@@ -263,42 +264,72 @@ class SupremeCourtS3Processor:
             if col in df.columns:
                 try:
                     df[col] = df[col].astype("string")
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not convert {col} to string: {e}")
 
-        # Write to temp parquet file
-        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=True) as tmp_file:
-            df.to_parquet(tmp_file.name, compression="snappy")
+        # Upload to S3 directly in the requested format:
+        # s3_bucket/metadata/parquet/year=YYYY/metadata.parquet
+        s3_key = f"metadata/parquet/year={year}/metadata.parquet"
 
-            # Upload to S3 directly in the requested format:
-            # s3_bucket/metadata/parquet/year=YYYY/metadata.parquet
-            s3_key = f"metadata/parquet/year={year}/metadata.parquet"
+        # Check if a file already exists and merge if so
+        try:
+            # If the file exists, we need to merge with it
+            self.s3.head_object(Bucket=self.s3_bucket, Key=s3_key)
 
-            # Check if a file already exists
+            # Download existing file
+            with tempfile.NamedTemporaryFile(
+                suffix=".parquet", delete=False
+            ) as existing_file:
+                existing_path = existing_file.name
+
             try:
-                # If the file exists, we need to merge with it
-                self.s3.head_object(Bucket=self.s3_bucket, Key=s3_key)
+                self.s3.download_file(self.s3_bucket, s3_key, existing_path)
+                existing_df = pd.read_parquet(existing_path)
 
-                # Download existing file
-                with tempfile.NamedTemporaryFile(
-                    suffix=".parquet", delete=True
-                ) as existing_file:
-                    self.s3.download_file(self.s3_bucket, s3_key, existing_file.name)
+                # Merge files
+                combined_df = pd.concat([existing_df, df], ignore_index=True)
 
-                    # Merge files
-                    existing_df = pd.read_parquet(existing_file.name)
-                    combined_df = pd.concat([existing_df, df], ignore_index=True)
+                # Remove duplicates based on 'path' field, keeping the last occurrence (newest)
+                if "path" in combined_df.columns:
+                    combined_df = combined_df.drop_duplicates(
+                        subset=["path"], keep="last"
+                    )
+                    logger.info(
+                        f"Removed duplicates for year {year}, {len(combined_df)} unique records remain"
+                    )
 
-                    # Write merged data back to temp file
-                    combined_df.to_parquet(tmp_file.name, compression="snappy")
-            except:
-                # File doesn't exist, no need to merge
-                pass
+                df = combined_df
+            finally:
+                # Clean up temp file
+                try:
+                    if os.path.exists(existing_path):
+                        os.unlink(existing_path)
+                except Exception as e:
+                    logger.debug(f"Could not delete temp file {existing_path}: {e}")
+        except Exception as e:
+            # File doesn't exist or error downloading, no need to merge
+            logger.debug(f"No existing parquet to merge for year {year}: {e}")
+
+        # Write to temp parquet file and upload
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+
+        try:
+            df.to_parquet(tmp_path, compression="snappy", index=False)
 
             # Upload file to S3
-            self.s3.upload_file(tmp_file.name, self.s3_bucket, s3_key)
+            self.s3.upload_file(tmp_path, self.s3_bucket, s3_key)
+            logger.info(f"Uploaded {len(df)} records for year {year} to S3")
+        finally:
+            # Clean up temp file
+            try:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+            except Exception as e:
+                logger.debug(f"Could not delete temp file {tmp_path}: {e}")
 
-        return len(records)
+        # Return the actual number of records written (after deduplication)
+        return len(df)
 
     def process_metadata(self, metadata: dict, year=None) -> Optional[dict]:
         """
@@ -522,10 +553,10 @@ class SupremeCourtS3Processor:
         sources = list(self.get_all_s3_sources())
 
         if not sources:
-            print(f"No source files found in S3 bucket {self.s3_bucket}!")
+            logger.info(f"No source files found in S3 bucket {self.s3_bucket}!")
             return
 
-        print(f"Found {len(sources)} source files to process from S3")
+        logger.info(f"Found {len(sources)} source files to process from S3")
 
         # Use appropriate number of workers based on CPU count
         if max_workers is None:
@@ -552,14 +583,14 @@ class SupremeCourtS3Processor:
                         self.years_to_process is not None
                         and year not in self.years_to_process
                     ):
-                        print(
+                        logger.info(
                             f"Skipping {s3_key} for year {year} (not in years_to_process)"
                         )
                         continue
 
                     # Choose processing method based on file type
-                    if s3_key.endswith(".zip"):
-                        future = executor.submit(self.process_s3_zip, s3_key, year)
+                    if s3_key.endswith(".tar"):
+                        future = executor.submit(self.process_s3_tar, s3_key, year)
                     else:
                         future = executor.submit(self.process_s3_json, s3_key, year)
                     futures[future] = (year, s3_key)
@@ -575,16 +606,16 @@ class SupremeCourtS3Processor:
                     record_count = future.result()
                     total_records += record_count
                     processed_years.add(year)
-                    print(
+                    logger.info(
                         f"Completed {os.path.basename(s3_key)} for year {year}: {record_count} records"
                     )
                 except Exception as e:
-                    print(f"Error processing {s3_key} for year {year}: {e}")
+                    logger.error(f"Error processing {s3_key} for year {year}: {e}")
 
-        print(
+        logger.info(
             f"Processed {len(processed_years)} years with {total_records} total records"
         )
-        print(
+        logger.info(
             f"Output files saved to S3 at {self.s3_bucket}/metadata/parquet/year=YYYY/metadata.parquet"
         )
 
@@ -629,8 +660,8 @@ class SupremeCourtS3Processor:
             for year, year_sources in sources_by_year.items():
                 for s3_key in year_sources:
                     # Choose processing method based on file type
-                    if s3_key.endswith(".zip"):
-                        future = executor.submit(self.process_s3_zip, s3_key, year)
+                    if s3_key.endswith(".tar"):
+                        future = executor.submit(self.process_s3_tar, s3_key, year)
                     else:
                         future = executor.submit(self.process_s3_json, s3_key, year)
                     futures[future] = (year, s3_key)
@@ -673,9 +704,7 @@ class SupremeCourtS3Processor:
 # Main execution for when running as a script
 def main():
     # S3 bucket information
-    s3_bucket = (
-        "indian-supreme-court-judgments"  # Replace with your S3 bucket name
-    )
+    s3_bucket = "indian-supreme-court-judgments"  # Replace with your S3 bucket name
     s3_prefix = ""  # Optional prefix (folder) in the bucket
 
     processor = SupremeCourtS3Processor(
