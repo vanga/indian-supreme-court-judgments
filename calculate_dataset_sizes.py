@@ -11,7 +11,7 @@ from botocore.client import Config
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-BUCKET = "indian-supreme-court-judgments-test"
+BUCKET = "indian-supreme-court-judgments"
 
 
 def bytes_to_gb(bytes_size):

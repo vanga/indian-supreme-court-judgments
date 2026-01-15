@@ -37,7 +37,7 @@ This project scrapes and archives Indian Supreme Court judgments from scr.sci.go
 All archives use uncompressed TAR format (`.tar`).
 
 ```
-indian-supreme-court-judgments-test/
+indian-supreme-court-judgments/
 ├── data/
 │   └── tar/
 │       └── year=YYYY/
@@ -60,7 +60,8 @@ indian-supreme-court-judgments-test/
 ## Configuration
 
 Key constants in `download.py`:
-- `S3_BUCKET`: Target S3 bucket (default: `indian-supreme-court-judgments-test`)
+
+- `S3_BUCKET`: Target S3 bucket (default: `indian-supreme-court-judgments`)
 - `S3_PREFIX`: S3 prefix (default: empty)
 - `LOCAL_DIR`: Local directory for temporary files (default: `./local_sc_judgments_data`)
 - `PACKAGES_DIR`: Local directory for packaged TAR files (default: `./packages`)
@@ -102,16 +103,16 @@ python download.py --sync-s3-fill
 
 ### Command Line Arguments
 
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `--start_date` | Start date (YYYY-MM-DD) | None |
-| `--end_date` | End date (YYYY-MM-DD) | None |
-| `--day_step` | Days per chunk | 1 |
-| `--max_workers` | Parallel workers | 5 |
-| `--no-package` | Skip TAR packaging | False |
-| `--sync-s3` | Sync mode (incremental updates) | False |
-| `--sync-s3-fill` | Gap-filling mode | False |
-| `--timeout-hours` | Max runtime hours | 5.5 |
+| Argument          | Description                     | Default |
+| ----------------- | ------------------------------- | ------- |
+| `--start_date`    | Start date (YYYY-MM-DD)         | None    |
+| `--end_date`      | End date (YYYY-MM-DD)           | None    |
+| `--day_step`      | Days per chunk                  | 1       |
+| `--max_workers`   | Parallel workers                | 5       |
+| `--no-package`    | Skip TAR packaging              | False   |
+| `--sync-s3`       | Sync mode (incremental updates) | False   |
+| `--sync-s3-fill`  | Gap-filling mode                | False   |
+| `--timeout-hours` | Max runtime hours               | 5.5     |
 
 ## Index File Format (V2)
 
@@ -158,6 +159,7 @@ Each archive has an accompanying `.index.json` file:
 ### archive_manager.py
 
 Manages TAR archives in S3 with:
+
 - Multi-part support for large archives (>1GB splits)
 - Index file tracking (V2 format with parts array)
 - Immediate upload mode for crash recovery
@@ -166,6 +168,7 @@ Manages TAR archives in S3 with:
 ### package_tar_files.py
 
 Local TAR packaging:
+
 - Groups files by year and type
 - Creates uncompressed TAR archives
 - Generates local index files
@@ -173,6 +176,7 @@ Local TAR packaging:
 ### process_metadata.py
 
 Metadata processing:
+
 - Extracts structured data from raw HTML
 - Parses decision dates, case numbers, judges
 - Generates parquet files for analytics
