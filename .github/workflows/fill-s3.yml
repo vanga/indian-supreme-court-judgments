@@ -5,13 +5,26 @@ on:
   # Uncomment the schedule below to enable automatic runs every 6 hours.
   # schedule:
   #   - cron: "0 */6 * * *"  # Runs every 6 hours - processes as many chunks as possible within timeout
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      start_year:
+        description: "Start year (YYYY). Leave blank to continue default gap fill."
+        required: false
+        type: string
+      end_year:
+        description: "End year (YYYY). Leave blank to use start_year."
+        required: false
+        type: string
+
+env:
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
 jobs:
   update-s3-data:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - name: Check out this repo
@@ -20,11 +33,36 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Authenticate with AWS using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions
+          aws-region: ap-south-1
+
+      - name: Resolve year range
+        run: |
+          START_YEAR="${{ inputs.start_year }}"
+          END_YEAR="${{ inputs.end_year }}"
+
+          if [ -n "$START_YEAR" ] && [ -z "$END_YEAR" ]; then
+            END_YEAR="$START_YEAR"
+          fi
+
+          if [ -n "$START_YEAR" ]; then
+            echo "START_DATE=${START_YEAR}-01-01" >> "$GITHUB_ENV"
+            echo "END_DATE=${END_YEAR}-12-31" >> "$GITHUB_ENV"
+            echo "USE_YEAR_RANGE=true" >> "$GITHUB_ENV"
+          else
+            echo "USE_YEAR_RANGE=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Update S3 data (process all remaining chunks within timeout)
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
-        run: python3 download.py --sync-s3-fill --timeout-hours 5.5
+        run: |
+          if [ "$USE_YEAR_RANGE" = "true" ]; then
+            python3 download.py --sync-s3-fill --start_date "$START_DATE" --end_date "$END_DATE" --timeout-hours 5.5
+          else
+            python3 download.py --sync-s3-fill --timeout-hours 5.5
+          fi
 
       - name: Commit and push progress (always runs)
         if: always()
