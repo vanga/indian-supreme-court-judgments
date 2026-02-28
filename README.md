@@ -131,14 +131,14 @@ This repository serves two primary audiences:
 
 1. **Data consumers** (researchers, analysts, downstream users)
    - Use the published datasets directly from the public S3 bucket
-   - Refer to the section *Working with data in AWS*
+   - Refer to the section _Working with data in AWS_
 
 2. **Contributors / maintainers**
    - Use this repository to download, process, package,
      and publish Supreme Court judgment datasets
-   - Refer to *Local development* and *Pipeline overview*
+   - Refer to _Local development_ and _Pipeline overview_
 
-## Pipeline Overview
+### Pipeline Overview
 
 At a high level, this repository implements a batch data pipeline:
 
@@ -149,3 +149,29 @@ At a high level, this repository implements a batch data pipeline:
 
 Most scripts are designed to be run as part of this pipeline rather than
 as standalone, user-facing commands.
+
+---
+
+### How to think about using this repository
+
+This repository supports two different workflows, and understanding the distinction helps avoid misuse.
+
+### 1. Data consumers (most users)
+
+If your goal is analysis, research, or experimentation:
+
+- Prefer downloading data directly from the public S3 bucket
+- Use the metadata (Parquet / index files) to selectively access what you need
+- Avoid running scraping or packaging scripts locally
+
+This approach is faster, reproducible, and reduces load on upstream systems.
+
+### 2. Data maintainers or contributors
+
+If you are modifying or extending this repository:
+
+- Use the local development workflow to test changes in isolation
+- Be mindful of request volume and retry behavior when interacting with upstream sources
+- Prefer changes that improve correctness, resilience, or usability over raw throughput
+
+In short: **consume from S3 when possible; run code locally only when you are improving the pipeline itself.**
