@@ -124,3 +124,28 @@ See the AWS [tutorials](./opendata/tutorials/README.md) for more detailed exampl
 - `source .venv/bin/activate`
 - `python3 download.py`
 - VS Code extensions: `Python`, `Pylance`, `ruff`
+
+### Who is this repository for?
+
+This repository serves two primary audiences:
+
+1. **Data consumers** (researchers, analysts, downstream users)
+   - Use the published datasets directly from the public S3 bucket
+   - Refer to the section *Working with data in AWS*
+
+2. **Contributors / maintainers**
+   - Use this repository to download, process, package,
+     and publish Supreme Court judgment datasets
+   - Refer to *Local development* and *Pipeline overview*
+
+## Pipeline Overview
+
+At a high level, this repository implements a batch data pipeline:
+
+1. Download raw Supreme Court judgments and metadata
+2. Normalize, clean, and validate metadata
+3. Package judgments into year-wise structured archives
+4. Publish datasets to a public S3 bucket for downstream use
+
+Most scripts are designed to be run as part of this pipeline rather than
+as standalone, user-facing commands.
