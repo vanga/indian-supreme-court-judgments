@@ -210,3 +210,8 @@ local_sc_judgments_data/
 index_cache/
 
 sc_track.json
+
+# sync_s3_fill runtime state and per-run change logs
+sc_fill_progress.json
+all_fill_changes.json
+chunk_changes_summary.json

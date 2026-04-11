@@ -3,7 +3,7 @@ name: Update S3 Data
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 16 * * 5" # Runs at 10:30 PM IST every Friday
+    - cron: "30 16 * * *" # Runs at 10:30 PM IST every day
 
 env:
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -38,11 +38,14 @@ jobs:
       - name: Update dataset sizes
         run: uv run calculate_dataset_sizes.py
         
-      - name: Commit and push changes
+      - name: Commit and push dataset_sizes.csv
         run: |
           git config user.name "Automated"
           git config user.email "github-actions@example.com"
-          git add -A
-          timestamp=$(date -u)
-          git commit -m "Update dataset sizes" || exit 0
-          git push
+          git add dataset_sizes.csv
+          if git diff --cached --quiet; then
+            echo "No dataset_sizes.csv changes this run"
+          else
+            git commit -m "Update dataset sizes"
+            git push
+          fi
