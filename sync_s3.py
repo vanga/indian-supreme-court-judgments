@@ -136,53 +136,77 @@ def find_latest_decision_date_in_tar(tar_path):
     return latest_date
 
 
-def get_latest_date_from_metadata(s3_bucket, force_check_files=False):
+def _max_decision_date_from_parquet(s3_bucket, year):
+    """Return the max decision_date from metadata/parquet/year={year}/metadata.parquet,
+    or None if the file is missing, empty, or has no parseable dates.
+
+    decision_date is stored as DD-MM-YYYY strings (see process_metadata.py).
     """
-    Get the latest decision date from metadata, preferring index.json if available.
-    Falls back to parsing individual files if needed or if force_check_files=True.
-    """
-    # First try to download the index.json file from S3
+    import pyarrow.parquet as pq
+
     s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+    key = f"metadata/parquet/year={year}/metadata.parquet"
+    local_path = Path("./index_cache") / f"{year}_metadata.parquet"
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        s3.download_file(s3_bucket, key, str(local_path))
+    except Exception as e:
+        logger.info(f"No parquet for year {year}: {e}")
+        return None
+
+    try:
+        table = pq.read_table(local_path, columns=["decision_date"])
+    except Exception as e:
+        logger.warning(f"Could not read parquet for year {year}: {e}")
+        return None
+
+    latest = None
+    for row in table.to_pylist():
+        raw = row.get("decision_date")
+        if not raw:
+            continue
+        try:
+            parsed = datetime.strptime(raw, "%d-%m-%Y")
+        except ValueError:
+            continue
+        if latest is None or parsed > latest:
+            latest = parsed
+    return latest
+
+
+def get_latest_date_from_metadata(s3_bucket, force_check_files=False):
+    """Return the latest decision date across S3 metadata for the current year,
+    falling back to the previous year if the current year has no data, and
+    to parsing the metadata tar as a last resort.
+    """
     current_year = datetime.now().year
 
-    # Create a separate directory for index files
-    index_cache_dir = Path("./index_cache")
-    index_cache_dir.mkdir(parents=True, exist_ok=True)
-
-    # Updated path for metadata index
-    index_path = index_cache_dir / f"{current_year}_metadata.index.json"
-    index_key = f"metadata/tar/year={current_year}/metadata.index.json"
-
     if not force_check_files:
-        try:
-            # Try to get current year index
-            s3.download_file(s3_bucket, index_key, str(index_path))
-            with open(index_path, "r") as f:
-                index_data = json.load(f)
+        for year in (current_year, current_year - 1):
+            latest = _max_decision_date_from_parquet(s3_bucket, year)
+            if latest is not None:
+                logger.info(
+                    f"Latest decision date in parquet (year={year}): {latest.date()}"
+                )
+                return latest
 
-            # Check if updated_at is available
-            if "updated_at" in index_data:
-                # Parse the ISO format timestamp
-                updated_at_str = index_data["updated_at"]
-                # Handle both with and without timezone
-                try:
-                    latest_date = datetime.fromisoformat(
-                        updated_at_str.replace("Z", "+00:00")
-                    )
-                except Exception:
-                    latest_date = datetime.fromisoformat(updated_at_str)
-
-                logger.info(f"Latest date from index.json: {latest_date.date()}")
-                return latest_date
-
-        except Exception as e:
-            logger.info(f"Could not use index.json for date detection: {e}")
-
-    # Fall back to the original method - parsing individual files
+    # Last resort: parse the metadata tar directly. Used on force_check_files
+    # or when parquet isn't available yet.
     logger.info("Falling back to parsing individual files for decision dates...")
     local_dir = Path("./local_sc_judgments_data")
     latest_tar = sync_latest_metadata_tar(s3_bucket, local_dir)
     return find_latest_decision_date_in_tar(latest_tar)
+
+
+# ecourts keeps editing the last couple of weeks: new judgments dated in that
+# window appear on the site for several days after the decision date. A small
+# trailing lookback catches this recent churn cheaply. Older back-fills
+# (judgments published months after their decision date) are not this script's
+# job -- run `download.py --sync-s3-fill` periodically for the 1950-onwards
+# historical sweep. Re-scanning is idempotent because the archive manager
+# skips files that already exist via file_exists().
+SYNC_LOOKBACK_DAYS = 14
 
 
 def run_downloader(start_date, end_date, archive_manager=None):
@@ -192,7 +216,7 @@ def run_downloader(start_date, end_date, archive_manager=None):
 
     logger.info(f"Fetching new data from {start_date} to {end_date} ...")
     run(
-        start_date=(start_date + timedelta(days=1)).strftime("%Y-%m-%d"),
+        start_date=start_date.strftime("%Y-%m-%d"),
         end_date=end_date.strftime("%Y-%m-%d"),
         archive_manager=archive_manager,
     )
@@ -217,48 +241,47 @@ def run_sync_s3(
     # Track changes for summary
     changes_made = False
     all_changes = {}
-    upload_metadata = {}
+
+    # Always re-scan the trailing SYNC_LOOKBACK_DAYS window (ecourts keeps
+    # editing recent dates for ~2 weeks). If we've fallen further behind than
+    # that, fall back to the real cursor so we don't skip a gap.
+    buffer_start = today - timedelta(days=SYNC_LOOKBACK_DAYS)
+    scan_start = min(latest_date.date(), buffer_start)
 
     # The archive_manager with immediate_upload enabled uploads each part as it's created
     # This prevents data loss if the script crashes mid-download
     with S3ArchiveManager(
         s3_bucket, s3_prefix, local_dir, immediate_upload=True
     ) as archive_manager:
-        # Check if we're up to date
-        if latest_date.date() >= today:
-            logger.info("✅ Data is up-to-date. No new downloads needed.")
-        else:
-            logger.info(
-                f"📥 New data available from {latest_date.date() + timedelta(days=1)} to {today}"
-            )
-            run_downloader(latest_date.date(), today, archive_manager)
-            changes_made = True
+        logger.info(
+            f"📥 Scanning {scan_start} to {today} "
+            f"(buffer_start={buffer_start}, latest_decision={latest_date.date()})"
+        )
+        run_downloader(scan_start, today, archive_manager)
+        changes_made = True
 
         # Get changes before exiting context
         if changes_made:
             all_changes = archive_manager.get_all_changes()
-            upload_metadata = archive_manager.get_upload_metadata()
 
     # AFTER the with block completes (archives are now uploaded to S3)
     # Log summary of changes
     if changes_made and all_changes:
         logger.info("\n📊 Sync Summary:")
-        logger.info(
-            f"  Date range: {latest_date.date() + timedelta(days=1)} to {today}"
-        )
+        logger.info(f"  Date range: {scan_start} to {today}")
         for year, archives in all_changes.items():
             logger.info(f"  Year {year}:")
             for archive_type, files in archives.items():
                 logger.info(f"    {archive_type}: {len(files)} files")
 
     # Check if any new files were actually downloaded in this run
-    if latest_date.date() < today:
+    if changes_made and all_changes:
         logger.info("🔄 Processing newly downloaded metadata to parquet format...")
 
         # Generate parquet only for the newly downloaded data
         try:
             # Process only the years that were just downloaded
-            start_year = latest_date.year
+            start_year = scan_start.year
             end_year = today.year
             # Convert years to strings as expected by SupremeCourtS3Processor
             years_to_process = [str(year) for year in range(start_year, end_year + 1)]

@@ -381,6 +381,12 @@ class Downloader:
         if results_exist:
             no_of_results = len(res_dict["reportrow"]["aaData"])
             logger.info(f"Found {no_of_results} results for task: {self.task}")
+        else:
+            logger.warning(
+                f"Empty search response for task {self.task}; "
+                f"keys={list(res_dict.keys())}; "
+                f"body={str(res_dict)[:800]}"
+            )
         return results_exist
 
     def _prepare_next_iteration(self, search_payload):
