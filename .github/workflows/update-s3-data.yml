@@ -33,12 +33,15 @@ jobs:
           aws-region: ap-south-1
 
       - name: Update S3 data
+        id: sync
         run: uv run download.py --sync-s3
 
       - name: Update dataset sizes
+        if: steps.sync.outputs.sync_changed == 'true'
         run: uv run calculate_dataset_sizes.py
         
       - name: Commit and push dataset_sizes.csv
+        if: steps.sync.outputs.sync_changed == 'true'
         run: |
           git config user.name "Automated"
           git config user.email "github-actions@example.com"

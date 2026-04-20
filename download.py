@@ -1447,7 +1447,7 @@ if __name__ == "__main__":
         # Sync mode: download new data from S3 and process
         from sync_s3 import run_sync_s3
 
-        run_sync_s3(
+        sync_changed = run_sync_s3(
             s3_bucket=S3_BUCKET,
             s3_prefix=S3_PREFIX,
             local_dir=LOCAL_DIR,
@@ -1456,6 +1456,10 @@ if __name__ == "__main__":
             day_step=args.day_step,
             max_workers=args.max_workers,
         )
+        github_output = os.getenv("GITHUB_OUTPUT")
+        if github_output:
+            with open(github_output, "a") as f:
+                f.write(f"sync_changed={'true' if sync_changed else 'false'}\n")
     else:
         run(
             args.start_date,

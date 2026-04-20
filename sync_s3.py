@@ -319,3 +319,5 @@ def run_sync_s3(
 
         shutil.rmtree(local_dir_path)
         logger.info(f"Cleaned up local directory: {local_dir_path}")
+
+    return bool(all_changes)
