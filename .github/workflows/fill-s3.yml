@@ -28,13 +28,13 @@ jobs:
 
     steps:
       - name: Check out this repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
       - name: Authenticate with AWS using OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions
           aws-region: ap-south-1
