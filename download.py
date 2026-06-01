@@ -381,9 +381,14 @@ class Downloader:
         if results_exist:
             no_of_results = len(res_dict["reportrow"]["aaData"])
             logger.info(f"Found {no_of_results} results for task: {self.task}")
+        elif "reportrow" in res_dict:
+            # Valid response with zero rows: expected when no judgments are
+            # available for this date yet (e.g. recent dates during upload lag).
+            logger.info(f"No results for task: {self.task}")
         else:
+            # Unexpected response shape (e.g. error/session page) - keep detail.
             logger.warning(
-                f"Empty search response for task {self.task}; "
+                f"Unexpected search response for task {self.task}; "
                 f"keys={list(res_dict.keys())}; "
                 f"body={str(res_dict)[:800]}"
             )

@@ -1,5 +1,4 @@
 # from https://huggingface.co/spaces/Acetde/captchabreaker/tree/main
-import os
 from pathlib import Path
 
 import torch
@@ -55,7 +54,6 @@ def get_text(img_org):
     probs = torch.tensor(logits).softmax(-1)
     preds, probs = tokenizer_base.decode(probs)
     preds = preds[0]
-    print(preds)
     return preds
 
 
