@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-extras --dev
       - name: Authenticate with AWS using OIDC
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions
           aws-region: ap-south-1
