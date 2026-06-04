@@ -4,7 +4,9 @@
 
 ### Summary
 
-This dataset contains judgements from the Indian Supreme Court, downloaded from [ecourts website](https://scr.sci.gov.in). It contains judgments from 1950 to 2025, along with raw metadata (in json format) and structured metadata. Judgments from the website are further compressed to optimize for size (care has been taken to not have any loss of data either in content or in visual appearance). Judgments are available in both English and regional Indian languages in tar format for easier download.
+This dataset contains judgements from the Indian Supreme Court, downloaded from [ecourts website](https://scr.sci.gov.in). It contains judgments from 1950 to 2025, along with raw metadata (in json format) and structured metadata. Judgments are available in both English and regional Indian languages.
+
+For bulk access, use the tar archives and parquet files. The bucket also exposes individual PDF and JSON objects, but downloading many individual files is slower and creates more S3 requests. Prefer `data/tar/`, `metadata/tar/`, or `metadata/parquet/` for bulk workflows.
 
 ## Data
 
@@ -24,6 +26,12 @@ This dataset contains judgements from the Indian Supreme Court, downloaded from 
 ```
 s3://indian-supreme-court-judgments/
 ├── data/
+│   ├── pdf/
+│   │   └── year=YYYY/
+│   │       ├── english/
+│   │       │   └── judgment1.pdf
+│   │       └── regional/
+│   │           └── judgment1_HINDI.pdf
 │   └── tar/
 │       └── year=YYYY/
 │           ├── english/
@@ -33,6 +41,9 @@ s3://indian-supreme-court-judgments/
 │               ├── regional.tar
 │               └── regional.index.json
 └── metadata/
+    ├── json/
+    │   └── year=YYYY/
+    │       └── judgment1.json
     ├── tar/
     │   └── year=YYYY/
     │       ├── metadata.tar
@@ -46,15 +57,17 @@ Where YYYY represents the year (1950-2025).
 
 Each year has three main components:
 
-- English judgments (TAR file and index JSON)
-- Regional language judgments (TAR file and index JSON)
-- Metadata (TAR file and index JSON)
+- English judgments (individual PDFs, TAR file, and index JSON)
+- Regional language judgments (individual PDFs, TAR file, and index JSON)
+- Metadata (individual JSON, TAR file, index JSON, and parquet)
 
 ### Example usage
 
 - Example command to list all available years: `aws s3 ls s3://indian-supreme-court-judgments/data/tar --no-sign-request`
 - Example command to download English judgments for 2023: `aws s3 cp s3://indian-supreme-court-judgments/data/tar/year=2023/english/english.tar . --no-sign-request`
 - Example command to view metadata index for 2023: `aws s3 cp s3://indian-supreme-court-judgments/metadata/tar/year=2023/metadata.index.json . --no-sign-request`
+- Example command to list individual English PDFs for 2023: `aws s3 ls s3://indian-supreme-court-judgments/data/pdf/year=2023/english/ --no-sign-request`
+- Example command to list individual metadata JSON files for 2023: `aws s3 ls s3://indian-supreme-court-judgments/metadata/json/year=2023/ --no-sign-request`
 - Since the S3 bucket is public, files can also be downloaded using links like `https://indian-supreme-court-judgments.s3.amazonaws.com/data/tar/year=2023/english/english.tar`
 
 ### Working with the data

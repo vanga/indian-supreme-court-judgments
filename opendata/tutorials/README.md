@@ -10,21 +10,25 @@ The Indian Supreme Court Judgments dataset contains court judgments delivered by
 
 ### Data Files
 
-Each year's data consists of three main components:
+Each year's data consists of tar archives for bulk access, parquet metadata for analytics, and individual JSON/PDF objects for targeted access. Prefer tar archives and parquet for bulk workflows because syncing many individual objects is slower and creates more S3 requests.
 
 1. **English Judgments** (`english.tar`):
 
-   - Contains judgments in English language for the specified year
-   - Each tar file has a corresponding index file (`english.index.json`) that provides information about the contained judgments
+  - Contains judgments in English language for the specified year
+  - Each tar file has a corresponding index file (`english.index.json`) that provides information about the contained judgments
+  - Individual PDFs are also available under `data/pdf/year=YYYY/english/`
 
 2. **Regional Language Judgments** (`regional.tar`):
 
-   - Contains judgments in various regional Indian languages for the specified year
-   - Each tar file has a corresponding index file (`regional.index.json`) that provides information about the contained judgments
+  - Contains judgments in various regional Indian languages for the specified year
+  - Each tar file has a corresponding index file (`regional.index.json`) that provides information about the contained judgments
+  - Individual PDFs are also available under `data/pdf/year=YYYY/regional/`
 
 3. **Metadata** (`metadata.tar`):
-   - Contains metadata about judgments for the specified year
-   - Each tar file has a corresponding index file (`metadata.index.json`) that provides information about the contained metadata
+  - Contains metadata about judgments for the specified year
+  - Each tar file has a corresponding index file (`metadata.index.json`) that provides information about the contained metadata
+  - Individual JSON files are also available under `metadata/json/year=YYYY/`
+  - Structured parquet metadata is available under `metadata/parquet/year=YYYY/metadata.parquet`
 
 ### Index Files
 
@@ -55,8 +59,14 @@ This dataset is available in the AWS Open Data Registry and can be accessed via:
    ```
 
 4. **Downloading Judgment Files**:
+  ```
+  aws s3 cp s3://indian-supreme-court-judgments/data/tar/year=2023/english/english.tar . --no-sign-request
+  ```
+
+5. **Listing Individual Objects**:
    ```
-   aws s3 cp s3://indian-supreme-court-judgments/data/tar/year=2023/english/english.tar . --no-sign-request
+   aws s3 ls s3://indian-supreme-court-judgments/data/pdf/year=2023/english/ --no-sign-request
+   aws s3 ls s3://indian-supreme-court-judgments/metadata/json/year=2023/ --no-sign-request
    ```
 
 ### Example Use Cases

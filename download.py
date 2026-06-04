@@ -1421,6 +1421,15 @@ if __name__ == "__main__":
         help="Sync data from S3 before running the downloader",
     )
     parser.add_argument(
+        "--sync-s3-refresh",
+        action="store_true",
+        default=False,
+        help=(
+            "Refresh an explicit S3 date range, ignoring the incremental cursor. "
+            "Requires --start_date and --end_date."
+        ),
+    )
+    parser.add_argument(
         "--sync-s3-fill",
         action="store_true",
         default=False,
@@ -1448,6 +1457,25 @@ if __name__ == "__main__":
             max_workers=args.max_workers,
             timeout_hours=args.timeout_hours,
         )
+    elif args.sync_s3_refresh:
+        if not args.start_date or not args.end_date:
+            parser.error("--sync-s3-refresh requires --start_date and --end_date")
+
+        from sync_s3 import run_sync_s3_refresh
+
+        sync_changed = run_sync_s3_refresh(
+            s3_bucket=S3_BUCKET,
+            s3_prefix=S3_PREFIX,
+            local_dir=LOCAL_DIR,
+            start_date=args.start_date,
+            end_date=args.end_date,
+            day_step=args.day_step,
+            max_workers=args.max_workers,
+        )
+        github_output = os.getenv("GITHUB_OUTPUT")
+        if github_output:
+            with open(github_output, "a") as f:
+                f.write(f"sync_changed={'true' if sync_changed else 'false'}\n")
     elif args.sync_s3:
         # Sync mode: download new data from S3 and process
         from sync_s3 import run_sync_s3

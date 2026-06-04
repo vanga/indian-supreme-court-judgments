@@ -13,6 +13,7 @@ import json
 import logging
 import tarfile
 import threading
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -28,6 +29,8 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 # Maximum size for each archive part (1GB for easier management)
 MAX_ARCHIVE_SIZE = 1 * 1024 * 1024 * 1024  # 1GB in bytes
+
+INDIVIDUAL_UPLOAD_RETRIES = 3
 
 
 def format_size(size_bytes: int) -> str:
@@ -204,18 +207,24 @@ class S3ArchiveManager:
         immediate_upload=False,
         max_archive_size: int = MAX_ARCHIVE_SIZE,
         local_only: bool = False,
+        upload_individual_objects: bool = True,
     ):
         self.s3_bucket = s3_bucket
         self.s3_prefix = s3_prefix
         self.local_dir = Path(local_dir)
         self.local_only = local_only
+        self.upload_individual_objects = upload_individual_objects and not local_only
         self.s3 = None if local_only else boto3.client("s3")
         self.max_archive_size = max_archive_size
 
         # Archive tracking - stores open tar file handles
-        self.archives: Dict[tuple, tarfile.TarFile] = {}  # (year, archive_type) -> TarFile
+        self.archives: Dict[
+            tuple, tarfile.TarFile
+        ] = {}  # (year, archive_type) -> TarFile
         self.archive_paths: Dict[tuple, Path] = {}  # (year, archive_type) -> local path
-        self.indexes: Dict[tuple, IndexFileV2] = {}  # (year, archive_type) -> IndexFileV2
+        self.indexes: Dict[
+            tuple, IndexFileV2
+        ] = {}  # (year, archive_type) -> IndexFileV2
         self.current_part_files: Dict[tuple, List[str]] = defaultdict(
             list
         )  # Files in current part
@@ -273,6 +282,19 @@ class S3ArchiveManager:
         else:
             # Separate english and regional into their own subfolders
             return f"data/tar/year={year}/{archive_type}/"
+
+    def _get_individual_s3_key(
+        self, year: int, archive_type: str, filename: str
+    ) -> str:
+        """Get S3 key for an individual JSON/PDF object."""
+        if archive_type == "metadata":
+            return f"metadata/json/year={year}/{filename}"
+        return f"data/pdf/year={year}/{archive_type}/{filename}"
+
+    def _get_content_type(self, archive_type: str) -> str:
+        if archive_type == "metadata":
+            return "application/json"
+        return "application/pdf"
 
     def _get_archive_extension(self, archive_type: str) -> str:
         """Get file extension for archive type"""
@@ -518,7 +540,9 @@ class S3ArchiveManager:
 
         # If upload is disabled (local_only mode), just log and skip upload
         if not upload:
-            logger.info(f"Archive finalized locally: {local_path.name} ({part_info['size_human']})")
+            logger.info(
+                f"Archive finalized locally: {local_path.name} ({part_info['size_human']})"
+            )
         # If immediate upload is enabled, upload this part now
         elif self.immediate_upload:
             logger.info(f"Immediately uploading finalized part: {local_path.name}")
@@ -591,8 +615,47 @@ class S3ArchiveManager:
         except Exception as e:
             logger.warning(f"Could not delete local part {local_path}: {e}")
 
+    def _upload_individual_object(self, year, archive_type, filename, data: bytes):
+        """Upload a loose S3 object alongside the tar archive member."""
+        if not self.upload_individual_objects:
+            return True
+
+        s3_key = self._get_individual_s3_key(year, archive_type, filename)
+        for attempt in range(1, INDIVIDUAL_UPLOAD_RETRIES + 1):
+            try:
+                self.s3.put_object(
+                    Bucket=self.s3_bucket,
+                    Key=s3_key,
+                    Body=data,
+                    ContentType=self._get_content_type(archive_type),
+                )
+                return True
+            except Exception as e:
+                if attempt < INDIVIDUAL_UPLOAD_RETRIES:
+                    wait = 2**attempt
+                    logger.warning(
+                        "Individual upload failed for %s (attempt %s/%s): %s. Retrying in %ss",
+                        s3_key,
+                        attempt,
+                        INDIVIDUAL_UPLOAD_RETRIES,
+                        e,
+                        wait,
+                    )
+                    time.sleep(wait)
+                else:
+                    logger.error(
+                        "Individual upload failed for %s after %s attempts: %s",
+                        s3_key,
+                        INDIVIDUAL_UPLOAD_RETRIES,
+                        e,
+                    )
+                    return False
+
     def add_to_archive(self, year, archive_type, filename, content):
         """Add a file to an archive, handling size-based partitioning"""
+        data = content if isinstance(content, bytes) else content.encode("utf-8")
+        should_upload_individual = False
+
         with self.lock:
             key = (year, archive_type)
 
@@ -615,9 +678,6 @@ class S3ArchiveManager:
 
             archive = self.get_archive(year, archive_type)
 
-            # Prepare the data
-            data = content if isinstance(content, bytes) else content.encode("utf-8")
-
             # Create TarInfo and add file
             info = tarfile.TarInfo(name=filename)
             info.size = len(data)
@@ -632,6 +692,10 @@ class S3ArchiveManager:
             # Track newly added files for summary
             if filename not in self.new_files_added[year][archive_type]:
                 self.new_files_added[year][archive_type].append(filename)
+            should_upload_individual = True
+
+        if should_upload_individual:
+            self._upload_individual_object(year, archive_type, filename, data)
 
     def file_exists(self, year, archive_type, filename):
         """Check if a file exists in any archive part"""

@@ -218,8 +218,102 @@ def run_downloader(start_date, end_date, archive_manager=None):
     run(
         start_date=start_date.strftime("%Y-%m-%d"),
         end_date=end_date.strftime("%Y-%m-%d"),
+        package_on_startup=False,
         archive_manager=archive_manager,
     )
+
+
+def process_changed_years_to_parquet(s3_bucket, s3_prefix, start_year, end_year):
+    """Regenerate parquet metadata for the years touched by an S3 run."""
+    from process_metadata import SupremeCourtS3Processor
+
+    years_to_process = [str(year) for year in range(start_year, end_year + 1)]
+    logger.info(f"Processing parquet for years: {years_to_process}")
+
+    processor = SupremeCourtS3Processor(
+        s3_bucket=s3_bucket,
+        s3_prefix=s3_prefix,
+        batch_size=10000,
+        years_to_process=years_to_process,
+    )
+
+    processed_years, total_records = processor.process_bucket_metadata()
+
+    if total_records > 0:
+        logger.info(f"✅ Successfully processed {total_records} records to parquet")
+    else:
+        logger.warning("⚠️ No new records were processed to parquet")
+
+    return processed_years, total_records
+
+
+def cleanup_local_dir(local_dir):
+    """Remove local S3 work directory after a sync run."""
+    local_dir_path = Path(local_dir)
+    if local_dir_path.exists():
+        import shutil
+
+        shutil.rmtree(local_dir_path)
+        logger.info(f"Cleaned up local directory: {local_dir_path}")
+
+
+def run_sync_s3_refresh(
+    s3_bucket, s3_prefix, local_dir, start_date, end_date, day_step, max_workers
+):
+    """Refresh an explicit S3 date range, ignoring the incremental cursor."""
+    from archive_manager import S3ArchiveManager
+    from download import run
+
+    if not start_date or not end_date:
+        raise ValueError("--sync-s3-refresh requires --start_date and --end_date")
+
+    start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
+    end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
+    if end_dt < start_dt:
+        raise ValueError("--end_date must be on or after --start_date")
+
+    all_changes = {}
+    logger.info(
+        f"🔁 Refreshing explicit S3 range {start_dt} to {end_dt} "
+        "(ignoring incremental cursor)"
+    )
+
+    with S3ArchiveManager(
+        s3_bucket, s3_prefix, local_dir, immediate_upload=True
+    ) as archive_manager:
+        run(
+            start_date=start_date,
+            end_date=end_date,
+            day_step=day_step,
+            max_workers=max_workers,
+            package_on_startup=False,
+            archive_manager=archive_manager,
+        )
+        all_changes = archive_manager.get_all_changes()
+
+    if all_changes:
+        logger.info("\n📊 Refresh Summary:")
+        logger.info(f"  Date range: {start_dt} to {end_dt}")
+        for year, archives in all_changes.items():
+            logger.info(f"  Year {year}:")
+            for archive_type, files in archives.items():
+                logger.info(f"    {archive_type}: {len(files)} files")
+
+        logger.info("🔄 Processing refreshed metadata to parquet format...")
+        try:
+            process_changed_years_to_parquet(
+                s3_bucket, s3_prefix, start_dt.year, end_dt.year
+            )
+        except Exception as e:
+            logger.error(f"❌ Error processing metadata to parquet: {e}")
+            import traceback
+
+            traceback.print_exc()
+    else:
+        logger.info("No new data found during explicit refresh")
+
+    cleanup_local_dir(local_dir)
+    return bool(all_changes)
 
 
 def run_sync_s3(
@@ -229,7 +323,6 @@ def run_sync_s3(
     Run the sync-s3 operation: check latest date in S3 and download new data.
     """
     from archive_manager import S3ArchiveManager
-    from process_metadata import SupremeCourtS3Processor
 
     logger.info("Checking latest date from S3 metadata...")
     latest_date = get_latest_date_from_metadata(s3_bucket)
@@ -280,29 +373,9 @@ def run_sync_s3(
 
         # Generate parquet only for the newly downloaded data
         try:
-            # Process only the years that were just downloaded
-            start_year = scan_start.year
-            end_year = today.year
-            # Convert years to strings as expected by SupremeCourtS3Processor
-            years_to_process = [str(year) for year in range(start_year, end_year + 1)]
-
-            logger.info(f"Processing parquet for years: {years_to_process}")
-
-            processor = SupremeCourtS3Processor(
-                s3_bucket=s3_bucket,
-                s3_prefix=s3_prefix,
-                batch_size=10000,
-                years_to_process=years_to_process,
+            process_changed_years_to_parquet(
+                s3_bucket, s3_prefix, scan_start.year, today.year
             )
-
-            processed_years, total_records = processor.process_bucket_metadata()
-
-            if total_records > 0:
-                logger.info(
-                    f"✅ Successfully processed {total_records} records to parquet"
-                )
-            else:
-                logger.warning("⚠️ No new records were processed to parquet")
 
         except Exception as e:
             logger.error(f"❌ Error processing metadata to parquet: {e}")
@@ -312,12 +385,6 @@ def run_sync_s3(
     else:
         logger.info("No new data to process to parquet format")
 
-    # Clean up LOCAL_DIR after processing
-    local_dir_path = Path(local_dir)
-    if local_dir_path.exists():
-        import shutil
-
-        shutil.rmtree(local_dir_path)
-        logger.info(f"Cleaned up local directory: {local_dir_path}")
+    cleanup_local_dir(local_dir)
 
     return bool(all_changes)
